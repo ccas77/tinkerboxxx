@@ -714,20 +714,34 @@ function Stats({ session }) {
   }, [data, timeframe, sortBy]);
 
   const totals = useMemo(() => {
+    const cutoffMs = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d":  7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      "90d": 90 * 24 * 60 * 60 * 1000,
+      "all": Infinity,
+    }[timeframe];
+    const now = Date.now();
+    const posts = data.filter(p => {
+      if (!p.platform_created_at) return false;
+      return now - new Date(p.platform_created_at).getTime() <= cutoffMs;
+    }).length;
     if (timeframe === "24h") {
       return data.reduce((acc, p) => ({
         views:    acc.views    + (p.last24h?.views    || 0),
         likes:    acc.likes    + (p.last24h?.likes    || 0),
         comments: acc.comments + (p.last24h?.comments || 0),
         shares:   acc.shares   + (p.last24h?.shares   || 0),
-      }), { views: 0, likes: 0, comments: 0, shares: 0 });
+        posts,
+      }), { views: 0, likes: 0, comments: 0, shares: 0, posts });
     }
     return data.reduce((acc, p) => ({
       views:    acc.views    + (p.view_count    || 0),
       likes:    acc.likes    + (p.like_count    || 0),
       comments: acc.comments + (p.comment_count || 0),
       shares:   acc.shares   + (p.share_count   || 0),
-    }), { views: 0, likes: 0, comments: 0, shares: 0 });
+      posts,
+    }), { views: 0, likes: 0, comments: 0, shares: 0, posts });
   }, [data, timeframe]);
 
   const tfLabel = timeframe === "24h" ? "Last 24h" : timeframe === "all" ? "All time" : `Last ${timeframe}`;
@@ -746,6 +760,7 @@ function Stats({ session }) {
 
       <div style={S.statSummary}>
         {[
+          { k: "posts",    label: "Posts",    icon: "📤" },
           { k: "views",    label: "Views",    icon: "👁" },
           { k: "likes",    label: "Likes",    icon: "❤️" },
           { k: "comments", label: "Comments", icon: "💬" },
@@ -1074,7 +1089,8 @@ const S = {
     color: "#fff", border: "1.5px solid #d97706",
   },
   statSummary: {
-    display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14,
+    display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 10, marginBottom: 14,
   },
   statCard: {
     background: "#fff", border: "1px solid #e4e4e7", borderRadius: 14,
