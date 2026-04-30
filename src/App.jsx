@@ -597,6 +597,17 @@ function fmtNum(n) {
   return String(Math.round(n));
 }
 
+function fmtWatchTime(seconds) {
+  if (!seconds || seconds <= 0) return "0";
+  const days = seconds / 86400;
+  if (days >= 1) return `${days.toFixed(1)}d`;
+  const h = seconds / 3600;
+  if (h >= 1) return `${h.toFixed(1)}h`;
+  const m = seconds / 60;
+  if (m >= 1) return `${Math.round(m)}m`;
+  return `${Math.round(seconds)}s`;
+}
+
 function captionText(p) {
   return p.video_description || p.caption || "(no caption)";
 }
@@ -728,20 +739,22 @@ function Stats({ session }) {
     }).length;
     if (timeframe === "24h") {
       return data.reduce((acc, p) => ({
-        views:    acc.views    + (p.last24h?.views    || 0),
-        likes:    acc.likes    + (p.last24h?.likes    || 0),
-        comments: acc.comments + (p.last24h?.comments || 0),
-        shares:   acc.shares   + (p.last24h?.shares   || 0),
+        views:     acc.views     + (p.last24h?.views    || 0),
+        likes:     acc.likes     + (p.last24h?.likes    || 0),
+        comments:  acc.comments  + (p.last24h?.comments || 0),
+        shares:    acc.shares    + (p.last24h?.shares   || 0),
+        watchTime: acc.watchTime + (p.last24h?.views || 0) * (Number(p.duration) || 0),
         posts,
-      }), { views: 0, likes: 0, comments: 0, shares: 0, posts });
+      }), { views: 0, likes: 0, comments: 0, shares: 0, watchTime: 0, posts });
     }
     return data.reduce((acc, p) => ({
-      views:    acc.views    + (p.view_count    || 0),
-      likes:    acc.likes    + (p.like_count    || 0),
-      comments: acc.comments + (p.comment_count || 0),
-      shares:   acc.shares   + (p.share_count   || 0),
+      views:     acc.views     + (p.view_count    || 0),
+      likes:     acc.likes     + (p.like_count    || 0),
+      comments:  acc.comments  + (p.comment_count || 0),
+      shares:    acc.shares    + (p.share_count   || 0),
+      watchTime: acc.watchTime + (p.view_count || 0) * (Number(p.duration) || 0),
       posts,
-    }), { views: 0, likes: 0, comments: 0, shares: 0, posts });
+    }), { views: 0, likes: 0, comments: 0, shares: 0, watchTime: 0, posts });
   }, [data, timeframe]);
 
   const tfLabel = timeframe === "24h" ? "Last 24h" : timeframe === "all" ? "All time" : `Last ${timeframe}`;
@@ -760,15 +773,16 @@ function Stats({ session }) {
 
       <div style={S.statSummary}>
         {[
-          { k: "posts",    label: "Posts",    icon: "📤" },
-          { k: "views",    label: "Views",    icon: "👁" },
-          { k: "likes",    label: "Likes",    icon: "❤️" },
-          { k: "comments", label: "Comments", icon: "💬" },
-          { k: "shares",   label: "Shares",   icon: "↗" },
+          { k: "posts",     label: "Posts",      icon: "📤" },
+          { k: "views",     label: "Views",      icon: "👁" },
+          { k: "likes",     label: "Likes",      icon: "❤️" },
+          { k: "comments",  label: "Comments",   icon: "💬" },
+          { k: "shares",    label: "Shares",     icon: "↗" },
+          { k: "watchTime", label: "Watch time", icon: "⏱" },
         ].map(c => (
           <div key={c.k} style={S.statCard}>
             <div style={S.statLabel}>{c.icon} {c.label}</div>
-            <div style={S.statValue}>{fmtNum(totals[c.k])}</div>
+            <div style={S.statValue}>{c.k === "watchTime" ? fmtWatchTime(totals[c.k]) : fmtNum(totals[c.k])}</div>
             <div style={S.statSub}>{tfLabel}</div>
           </div>
         ))}
