@@ -18,6 +18,34 @@ async function pbFetch(path, init = {}) {
   return res.json();
 }
 
+async function fetchAllAccounts() {
+  const all = [];
+  let offset = 0;
+  for (let page = 0; page < 10; page++) {
+    const r = await pbFetch(`/v1/social-accounts?limit=100&offset=${offset}`);
+    const rows = r.data || [];
+    all.push(...rows);
+    if (rows.length < 100) break;
+    offset += 100;
+  }
+  return all;
+}
+
+async function fetchPostResultsForIds(wantedIds) {
+  const map = {};
+  if (!wantedIds.size) return map;
+  let offset = 0;
+  for (let page = 0; page < 10; page++) {
+    const r = await pbFetch(`/v1/post-results?limit=100&offset=${offset}`);
+    const rows = r.data || [];
+    for (const pr of rows) if (wantedIds.has(pr.id)) map[pr.id] = pr;
+    if (rows.length < 100) break;
+    if (Object.keys(map).length >= wantedIds.size) break;
+    offset += 100;
+  }
+  return map;
+}
+
 async function authUser(req) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
   if (!token) return { error: "Missing auth token", status: 401 };
@@ -48,14 +76,34 @@ export default async function handler(req, res) {
       const apiTimeframe = timeframe === "24h" ? "7d" : timeframe;
       const params = new URLSearchParams({ limit: "100", timeframe: apiTimeframe });
       if (platform) params.set("platform", platform);
-      const data = await pbFetch(`/v1/analytics?${params}`);
-      const items = data.data || [];
+
+      const [analyticsResp, accountsResp] = await Promise.all([
+        pbFetch(`/v1/analytics?${params}`),
+        fetchAllAccounts(),
+      ]);
+      const items = analyticsResp.data || [];
+
+      const wantedPrIds = new Set(items.map(p => p.post_result_id).filter(Boolean));
+      const prMap = await fetchPostResultsForIds(wantedPrIds);
+      const accById = Object.fromEntries(accountsResp.map(a => [a.id, a]));
+
+      const withUsername = items.map(p => {
+        const pr = prMap[p.post_result_id];
+        const acc = pr ? accById[pr.social_account_id] : null;
+        let username = acc?.username || null;
+        if (!username && p.platform === "tiktok" && p.share_url) {
+          const m = p.share_url.match(/tiktok\.com\/@([^/]+)/);
+          if (m) username = m[1];
+        }
+        return { ...p, username };
+      });
+
       if (timeframe !== "24h") {
-        return res.status(200).json({ data: items, meta: data.meta });
+        return res.status(200).json({ data: withUsername, meta: analyticsResp.meta });
       }
       const enriched = [];
-      for (let i = 0; i < items.length; i += 8) {
-        const chunk = items.slice(i, i + 8);
+      for (let i = 0; i < withUsername.length; i += 8) {
+        const chunk = withUsername.slice(i, i + 8);
         const results = await Promise.all(chunk.map(async (p) => {
           try {
             const daily = await pbFetch(`/v1/analytics/${p.id}/daily`);
@@ -67,7 +115,7 @@ export default async function handler(req, res) {
         }));
         enriched.push(...results);
       }
-      return res.status(200).json({ data: enriched, meta: data.meta });
+      return res.status(200).json({ data: enriched, meta: analyticsResp.meta });
     }
     if (action === "daily") {
       const id = req.query.id;

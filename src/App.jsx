@@ -796,10 +796,15 @@ function Stats({ session }) {
                 <div style={{ ...S.postThumb, display: "flex", alignItems: "center", justifyContent: "center", background: "#f4f4f5", fontSize: 22 }}>{platform.icon}</div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <div style={S.postHeader}>
+                  <span style={S.postUsername}>{p.username ? `@${p.username}` : "Unknown account"}</span>
                   <span style={{ fontSize: 10, fontWeight: 600, color: platform.color, background: platform.bg, padding: "2px 8px", borderRadius: 10 }}>{platform.label}</span>
-                  {p.platform_created_at && <span style={S.postDate}>{new Date(p.platform_created_at).toLocaleDateString()}</span>}
                 </div>
+                {p.platform_created_at && (
+                  <div style={S.postDate}>
+                    {new Date(p.platform_created_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </div>
+                )}
                 <div style={S.postCaption}>{captionText(p)}</div>
                 <div style={S.postStats}>
                   <span>👁 {fmtNum(p.view_count)}</span>
@@ -1116,7 +1121,17 @@ const S = {
     width: 72, height: 72, borderRadius: 10, objectFit: "cover",
     flexShrink: 0, background: "#f4f4f5",
   },
-  postDate: { fontSize: 11, color: "#a1a1aa", fontFamily: "'IBM Plex Mono', monospace" },
+  postHeader: {
+    display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap",
+  },
+  postUsername: {
+    fontSize: 13, fontWeight: 700, color: "#18181b",
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200,
+  },
+  postDate: {
+    fontSize: 11, color: "#a1a1aa", fontFamily: "'IBM Plex Mono', monospace",
+    marginBottom: 6,
+  },
   postCaption: {
     fontSize: 13, color: "#18181b", lineHeight: 1.4, marginBottom: 6,
     overflow: "hidden", textOverflow: "ellipsis",
