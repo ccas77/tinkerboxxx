@@ -828,6 +828,15 @@ function Stats({ session }) {
                 <div style={S.postHeader}>
                   <span style={S.postUsername}>{p.username ? `@${p.username}` : "Unknown account"}</span>
                   <span style={{ fontSize: 10, fontWeight: 600, color: platform.color, background: platform.bg, padding: "2px 8px", borderRadius: 10 }}>{platform.label}</span>
+                  {p.share_url && (
+                    <a
+                      href={p.share_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      style={S.postLink}
+                    >↗ Open</a>
+                  )}
                 </div>
                 {p.platform_created_at && (
                   <div style={S.postDate}>
@@ -1199,5 +1208,11 @@ const S = {
     borderRadius: 10, fontSize: 12, fontWeight: 600, color: "#18181b",
     cursor: "pointer", textDecoration: "none",
     fontFamily: "'Instrument Sans', sans-serif", display: "inline-block",
+  },
+  postLink: {
+    fontSize: 10, fontWeight: 600, color: "#18181b",
+    background: "#fafaf9", border: "1px solid #e4e4e7",
+    padding: "2px 8px", borderRadius: 10, textDecoration: "none",
+    fontFamily: "'Instrument Sans', sans-serif",
   },
 };
