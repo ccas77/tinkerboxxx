@@ -6,20 +6,50 @@ const PB_BASE = "https://api.post-bridge.com";
 // 200 pages * 100 = 20,000 rows. Raise if you ever exceed that.
 const MAX_PAGES = 200;
 
+// Self-throttle to ~8 req/sec (Post Bridge cap is 10/sec) and auto-retry 429s
+// using rate_limit.reset_ms from the response body, capped at 5s per wait.
+const PB_MIN_GAP_MS = 125;
+let pbChain = Promise.resolve();
+let pbLastStart = 0;
+
 async function pbFetch(path, init = {}) {
-  const res = await fetch(`${PB_BASE}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${process.env.POSTBRIDGE_API_KEY}`,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`post-bridge ${path} ${res.status}: ${body.slice(0, 200)}`);
-  }
-  return res.json();
+  const run = async () => {
+    const gap = pbLastStart + PB_MIN_GAP_MS - Date.now();
+    if (gap > 0) await new Promise(r => setTimeout(r, gap));
+    pbLastStart = Date.now();
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const res = await fetch(`${PB_BASE}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${process.env.POSTBRIDGE_API_KEY}`,
+          "Content-Type": "application/json",
+          ...(init.headers || {}),
+        },
+      });
+      if (res.status === 429) {
+        let resetMs = 1000;
+        try {
+          const body = await res.clone().json();
+          const r = Number(body?.rate_limit?.reset_ms);
+          if (Number.isFinite(r) && r > 0) resetMs = r;
+        } catch {}
+        const wait = Math.min(Math.max(resetMs, 100), 5000);
+        await new Promise(r => setTimeout(r, wait));
+        pbLastStart = Date.now();
+        continue;
+      }
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`post-bridge ${path} ${res.status}: ${body.slice(0, 200)}`);
+      }
+      return res.json();
+    }
+    throw new Error(`post-bridge ${path} 429: exceeded retry attempts`);
+  };
+  const result = pbChain.then(run, run);
+  pbChain = result.catch(() => {});
+  return result;
 }
 
 // Generic paginator: walks limit/offset until a short page comes back
@@ -131,19 +161,17 @@ export default async function handler(req, res) {
       if (timeframe !== "24h") {
         return res.status(200).json({ data: withUsername });
       }
+      // Run /daily calls sequentially through the throttled pbFetch instead
+      // of firing parallel batches of 8 (which tripped the 10 req/sec cap).
       const enriched = [];
-      for (let i = 0; i < withUsername.length; i += 8) {
-        const chunk = withUsername.slice(i, i + 8);
-        const results = await Promise.all(chunk.map(async (p) => {
-          try {
-            const daily = await pbFetch(`/v1/analytics/${p.id}/daily`);
-            const lastDelta = daily.deltas?.length ? daily.deltas[daily.deltas.length - 1] : null;
-            return { ...p, last24h: lastDelta };
-          } catch {
-            return { ...p, last24h: null };
-          }
-        }));
-        enriched.push(...results);
+      for (const p of withUsername) {
+        try {
+          const daily = await pbFetch(`/v1/analytics/${p.id}/daily`);
+          const lastDelta = daily.deltas?.length ? daily.deltas[daily.deltas.length - 1] : null;
+          enriched.push({ ...p, last24h: lastDelta });
+        } catch {
+          enriched.push({ ...p, last24h: null });
+        }
       }
       return res.status(200).json({ data: enriched });
     }
