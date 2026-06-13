@@ -90,7 +90,15 @@ async function fetchPostResultsForIds(wantedIds) {
   if (!wantedIds.size) return map;
   let offset = 0;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const r = await pbFetch(`/v1/post-results?limit=100&offset=${offset}`);
+    let r;
+    try {
+      r = await pbFetch(`/v1/post-results?limit=100&offset=${offset}`);
+    } catch (e) {
+      // Post Bridge occasionally 500s on deep pages. Degrade to a partial
+      // username map instead of failing the whole analytics response.
+      console.warn(`fetchPostResultsForIds: stopping at offset=${offset}: ${e.message}`);
+      break;
+    }
     const rows = r.data || [];
     for (const pr of rows) if (wantedIds.has(pr.id)) map[pr.id] = pr;
     if (rows.length < 100) break;
