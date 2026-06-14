@@ -12,7 +12,7 @@ const PB_MIN_GAP_MS = 125;
 let pbChain = Promise.resolve();
 let pbLastStart = 0;
 
-async function pbFetch(path, init = {}) {
+export async function pbFetch(path, init = {}) {
   const run = async () => {
     const gap = pbLastStart + PB_MIN_GAP_MS - Date.now();
     if (gap > 0) await new Promise(r => setTimeout(r, gap));
@@ -77,15 +77,27 @@ async function pbFetchAll(buildPath) {
   return all;
 }
 
-async function fetchAllAccounts() {
+export async function fetchAllAccounts() {
   return pbFetchAll(
     (offset) => `/v1/social-accounts?limit=100&offset=${offset}`
   );
 }
 
+export async function fetchAllAnalytics(apiTimeframe, platform) {
+  return pbFetchAll((offset) => {
+    const params = new URLSearchParams({
+      limit: "100",
+      offset: String(offset),
+      timeframe: apiTimeframe,
+    });
+    if (platform) params.set("platform", platform);
+    return `/v1/analytics?${params}`;
+  });
+}
+
 // Build a complete id -> post-result map by paging through ALL post-results,
 // instead of bailing out after the first 1,000 rows.
-async function fetchPostResultsForIds(wantedIds) {
+export async function fetchPostResultsForIds(wantedIds) {
   const map = {};
   if (!wantedIds.size) return map;
   let offset = 0;
@@ -139,15 +151,7 @@ export default async function handler(req, res) {
       const apiTimeframe = timeframe === "24h" ? "7d" : timeframe;
 
       // Page through the FULL analytics list instead of capping at 100.
-      const items = await pbFetchAll((offset) => {
-        const params = new URLSearchParams({
-          limit: "100",
-          offset: String(offset),
-          timeframe: apiTimeframe,
-        });
-        if (platform) params.set("platform", platform);
-        return `/v1/analytics?${params}`;
-      });
+      const items = await fetchAllAnalytics(apiTimeframe, platform);
 
       const accountsResp = await fetchAllAccounts();
 
