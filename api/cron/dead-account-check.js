@@ -58,8 +58,12 @@ export default async function handler(req, res) {
     const prMap = await fetchPostResultsForIds(wantedPrIds);
     const accById = Object.fromEntries(accounts.map(a => [a.id, a]));
 
+    // Post Bridge's analytics sync covers TikTok / YouTube / Instagram only,
+    // so Facebook posts always report 0 views regardless of real performance.
+    // Skip them to avoid daily false-positive alerts.
     const perAccount = new Map();
     for (const p of items) {
+      if (p.platform === "facebook") continue;
       const pr = prMap[p.post_result_id];
       const acc = pr ? accById[pr.social_account_id] : null;
       let username = acc?.username || null;
