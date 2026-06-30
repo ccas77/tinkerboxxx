@@ -12,6 +12,7 @@ Output format:
 - Be specific about physical detail: materials, textures, body position, expressions, clothing, props.
 - Do NOT name real people, copyrighted characters, or specific artist names. If you recognise a person, describe their features generically.
 - Do NOT infer or impose a genre. Describe only what you can actually see in the image.
+- IGNORE any text overlay, caption, watermark, logo text, or typography in the image. Do not describe it, transcribe it, or reference its placement. Describe only the underlying visual scene as if the text were not there.
 - Return only the prompt paragraph. No preamble, no headings, no quote marks.`;
 
 export default async function handler(req, res) {
