@@ -13,6 +13,7 @@ Output format:
 - Do NOT name real people, copyrighted characters, or specific artist names. If you recognise a person, describe their features generically.
 - Do NOT infer or impose a genre. Describe only what you can actually see in the image.
 - IGNORE any text overlay, caption, watermark, logo text, or typography in the image. Do not describe it, transcribe it, or reference its placement. Describe only the underlying visual scene as if the text were not there.
+- NO INTERPRETATION. Describe what is visually present, not what it means, suggests, evokes, or invites the viewer to feel. Banned moves include: explaining the "significance" of objects, attributing emotions or intentions to the subject, narrating what the composition "draws attention to" or "emphasizes", guessing at backstory, calling the mood "reflective" / "contemplative" / "peaceful" / "mysterious", or any phrase like "suggesting a love for X", "inviting curiosity", "speaks to", "evokes a sense of". Mood and atmosphere may only be conveyed through concrete visual facts (warm afternoon light, soft focus, muted palette), never editorial labels.
 - Return only the prompt paragraph. No preamble, no headings, no quote marks.`;
 
 export default async function handler(req, res) {
