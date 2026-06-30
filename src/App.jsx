@@ -376,9 +376,13 @@ function Main({ session }) {
         <button onClick={() => { setTab("stats"); reset(); }} style={{ ...S.tabBtn, ...(tab === "stats" ? S.tabActive : {}) }}>
           Stats
         </button>
+        <button onClick={() => { setTab("prompt"); reset(); }} style={{ ...S.tabBtn, ...(tab === "prompt" ? S.tabActive : {}) }}>
+          Prompt
+        </button>
       </div>
 
       {tab === "stats" && <Stats session={session} />}
+      {tab === "prompt" && <PromptTool session={session} />}
 
       {tab === "apps" && (
         <div style={S.fadeIn}>
@@ -633,6 +637,181 @@ function MiniChart({ daily, metric }) {
         <circle key={i} cx={PX + i * xStep} cy={yFor(v)} r="3" fill="#d97706" />
       ))}
     </svg>
+  );
+}
+
+function PromptTool({ session }) {
+  const [mode, setMode] = useState("upload");
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageDataUrl, setImageDataUrl] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const fileRef = useRef(null);
+
+  const preview = imageDataUrl || imageUrl;
+
+  function onFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5_000_000) {
+      setError("Image too large (max 5MB)");
+      return;
+    }
+    setError("");
+    setFileName(file.name);
+    setImageUrl("");
+    const r = new FileReader();
+    r.onload = () => setImageDataUrl(String(r.result || ""));
+    r.readAsDataURL(file);
+  }
+
+  function clearImage() {
+    setImageUrl("");
+    setImageDataUrl("");
+    setFileName("");
+    setPrompt("");
+    setError("");
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function generate() {
+    if (!preview) return;
+    setLoading(true);
+    setError("");
+    setPrompt("");
+    try {
+      const body = imageDataUrl ? { imageDataUrl } : { imageUrl };
+      const res = await fetch("/api/image-to-prompt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Generation failed");
+      setPrompt(j.prompt);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }
+
+  return (
+    <div style={S.fadeIn}>
+      <div style={S.form}>
+        <div style={S.formTitle}>Image → Gemini prompt</div>
+
+        <div style={{ display: "flex", gap: 4, marginBottom: 14, background: "#f4f4f5", borderRadius: 10, padding: 3 }}>
+          <button
+            onClick={() => { setMode("upload"); setImageUrl(""); }}
+            style={{
+              ...S.tabBtn,
+              fontSize: 12, padding: "8px 0",
+              ...(mode === "upload" ? S.tabActive : {}),
+            }}
+          >Upload</button>
+          <button
+            onClick={() => { setMode("url"); setImageDataUrl(""); setFileName(""); }}
+            style={{
+              ...S.tabBtn,
+              fontSize: 12, padding: "8px 0",
+              ...(mode === "url" ? S.tabActive : {}),
+            }}
+          >Paste URL</button>
+        </div>
+
+        {mode === "upload" ? (
+          <div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={onFile}
+              style={{ display: "none" }}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              style={{
+                ...S.addBtn,
+                marginBottom: 12,
+              }}
+            >{fileName ? `📎 ${fileName}` : "+ Choose image"}</button>
+          </div>
+        ) : (
+          <input
+            style={S.input}
+            type="url"
+            placeholder="https://example.com/image.jpg"
+            value={imageUrl}
+            onChange={e => { setImageUrl(e.target.value); setPrompt(""); }}
+          />
+        )}
+
+        {preview && (
+          <div style={{ marginBottom: 14, borderRadius: 12, overflow: "hidden", border: "1px solid #e4e4e7", background: "#fafaf9" }}>
+            <img
+              src={preview}
+              alt="preview"
+              style={{ width: "100%", maxHeight: 320, objectFit: "contain", display: "block" }}
+              onError={() => setError("Could not load image from URL")}
+            />
+          </div>
+        )}
+
+        <div style={S.formBtns}>
+          {preview && (
+            <button style={S.cancel} onClick={clearImage} disabled={loading}>Clear</button>
+          )}
+          <button
+            style={{ ...S.save, opacity: (!preview || loading) ? 0.5 : 1, cursor: (!preview || loading) ? "not-allowed" : "pointer" }}
+            onClick={generate}
+            disabled={!preview || loading}
+          >{loading ? "Reading image…" : "Generate prompt"}</button>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, background: "#fef2f2", color: "#b91c1c", fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+      </div>
+
+      {prompt && (
+        <div style={{ ...S.form, marginTop: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={S.formTitle}>Prompt</div>
+            <button
+              onClick={copyPrompt}
+              style={{
+                ...S.cancel,
+                padding: "6px 14px", fontSize: 12,
+                color: copied ? "#d97706" : "#71717a",
+                borderColor: copied ? "#fcd34d" : "#e4e4e7",
+              }}
+            >{copied ? "Copied" : "Copy"}</button>
+          </div>
+          <div style={{
+            background: "#fafaf9", border: "1.5px solid #e4e4e7", borderRadius: 12,
+            padding: "12px 14px", fontSize: 14, lineHeight: 1.55, color: "#18181b",
+            fontFamily: "'Instrument Sans', sans-serif", whiteSpace: "pre-wrap",
+          }}>{prompt}</div>
+        </div>
+      )}
+    </div>
   );
 }
 
