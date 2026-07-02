@@ -1,5 +1,23 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "./supabase";
+import { Home, About, Products, Careers, Contact, NotFound } from "./Marketing";
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/careers" element={<Careers />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/app/*" element={<Dashboard />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
 const STAGE = {
   wip: { label: "WIP", color: "#c2650a", bg: "#fef3e2" },
@@ -150,7 +168,7 @@ function AppIcon({ url, emoji, iconUrl, busy }) {
   );
 }
 
-export default function App() {
+function Dashboard() {
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
