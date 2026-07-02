@@ -4,5 +4,13 @@
       "path": "/api/cron/dead-account-check",
       "schedule": "0 9 * * *"
     }
+  ],
+  "rewrites": [
+    { "source": "/about", "destination": "/" },
+    { "source": "/products", "destination": "/" },
+    { "source": "/careers", "destination": "/" },
+    { "source": "/contact", "destination": "/" },
+    { "source": "/app", "destination": "/" },
+    { "source": "/app/:path*", "destination": "/" }
   ]
 }
