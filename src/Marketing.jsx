@@ -17,14 +17,9 @@ const font = {
 };
 
 const PRODUCTS = [
-  { key: "slideshow-generator", name: "Slideshow Generator", tagline: "AI-driven slideshow production for creators.", grad: "linear-gradient(135deg, #0866FF 0%, #0353c9 100%)" },
-  { key: "slideshow-creator", name: "Slideshow Creator", tagline: "Manual slideshow builder with template control.", grad: "linear-gradient(135deg, #7B47C7 0%, #5c2f9d 100%)" },
-  { key: "inkwell", name: "Inkwell", tagline: "A writing environment built for long-form work.", grad: "linear-gradient(135deg, #1D3557 0%, #0e2340 100%)" },
-  { key: "meme-maker", name: "Meme Maker", tagline: "Batch generator with reusable layouts.", grad: "linear-gradient(135deg, #F7546B 0%, #d63e57 100%)" },
-  { key: "quadrants", name: "Quadrants", tagline: "Idea sorting and priority triage.", grad: "linear-gradient(135deg, #00A99D 0%, #00807a 100%)" },
-  { key: "book-video-bot", name: "Book Video Bot", tagline: "Automated trailer production pipeline.", grad: "linear-gradient(135deg, #B00020 0%, #820014 100%)" },
-  { key: "tinkerboxxx", name: "Tinkerboxxx", tagline: "Personal launchpad and analytics workspace.", grad: "linear-gradient(135deg, #3F4E58 0%, #2c383f 100%)" },
-  { key: "reposter", name: "Reposter", tagline: "Cross-platform content redistribution.", grad: "linear-gradient(135deg, #2E7D5B 0%, #1e5a3f 100%)" },
+  { key: "reposterr", name: "Reposterr", tagline: "Repost across platforms in one pass.", grad: "linear-gradient(135deg, #0866FF 0%, #0353c9 100%)" },
+  { key: "simplepostr", name: "SimplePostr", tagline: "Simple social publishing and scheduling.", grad: "linear-gradient(135deg, #7B47C7 0%, #5c2f9d 100%)" },
+  { key: "socialato", name: "Socialato", tagline: "Bulk social workflows at speed.", grad: "linear-gradient(135deg, #00A99D 0%, #00807a 100%)" },
 ];
 
 const VALUES = [
@@ -73,7 +68,7 @@ function Footer() {
           <div>
             <div style={colTitle}>Products</div>
             <ul style={{ margin: 0, padding: 0 }}>
-              {PRODUCTS.slice(0, 4).map(p => (
+              {PRODUCTS.map(p => (
                 <li key={p.key} style={li}><Link to="/products" style={a}>{p.name}</Link></li>
               ))}
             </ul>
@@ -191,9 +186,7 @@ export function Home() {
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 16,
         }}>
-          {PRODUCTS.slice(0, 4).map((p, i) => (
-            <ProductTile key={p.key} p={p} big={i === 0} />
-          ))}
+          {PRODUCTS.map(p => <ProductTile key={p.key} p={p} />)}
         </div>
       </section>
 
