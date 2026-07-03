@@ -17,7 +17,7 @@ const font = {
 };
 
 const PRODUCTS = [
-  { key: "reposterr", name: "Reposterr", tagline: "Repost across platforms in one pass.", grad: "linear-gradient(135deg, #0866FF 0%, #0353c9 100%)" },
+  { key: "reposterr", name: "Reposterr", tagline: "Turn one post into ten.", grad: "linear-gradient(135deg, #0866FF 0%, #0353c9 100%)" },
   { key: "simplepostr", name: "SimplePostr", tagline: "Simple social publishing and scheduling.", grad: "linear-gradient(135deg, #7B47C7 0%, #5c2f9d 100%)" },
   { key: "socialato", name: "Socialato", tagline: "Your footage, polished for social media.", grad: "linear-gradient(135deg, #00A99D 0%, #00807a 100%)" },
 ];
