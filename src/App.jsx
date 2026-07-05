@@ -966,9 +966,7 @@ function ManagerAppCard({ a, expanded, onToggle }) {
             <Metric label="Failing" value={s.counts.failingCount} tone={s.counts.failingCount > 0 ? "error" : undefined} />
           </div>
           <div style={M.badgeRow}>
-            <ConnBadge label="KV" ok={s.connections.kv.reachable} detail={s.connections.kv.error} />
-            <ConnBadge label="PB" ok={s.connections.postBridge.configured} detail={fmtLast(s.connections.postBridge.lastSuccessAt)} />
-            <ConnBadge label="Apify" ok={s.connections.apify.configured} detail={fmtLast(s.connections.apify.lastSuccessAt)} />
+            {renderBadges(s.connections)}
           </div>
           {a.diagnosis.reasons.length > 0 && (
             <div style={M.reasonsBox}>
@@ -1036,6 +1034,46 @@ function ConnBadge({ label, ok, detail }) {
       {label}{detail ? <span style={{ fontWeight: 400, opacity: 0.85 }}> · {detail}</span> : null}
     </div>
   );
+}
+
+// Render a badge for every connection the app declares. KV is special: always
+// shown because every app needs storage of some kind, and its `reachable` flag
+// carries the meaningful signal (not `configured`). All other connections are
+// only shown if the app reports them as configured — absence means "this app
+// does not use this service", not "this service is broken".
+const CONN_LABEL = {
+  kv: "KV",
+  postBridge: "Post Bridge",
+  apify: "Apify",
+  higgsfield: "Higgsfield",
+  openai: "OpenAI",
+  claude: "Claude",
+  gemini: "Gemini",
+  r2: "R2",
+  blob: "Blob",
+  database: "Database",
+  resend: "Resend",
+};
+function renderBadges(connections) {
+  const out = [];
+  if (connections.kv) {
+    out.push(
+      <ConnBadge key="kv" label={CONN_LABEL.kv} ok={connections.kv.reachable} detail={connections.kv.error} />
+    );
+  }
+  for (const [key, val] of Object.entries(connections)) {
+    if (key === "kv" || !val || typeof val !== "object") continue;
+    if (!val.configured) continue;
+    out.push(
+      <ConnBadge
+        key={key}
+        label={CONN_LABEL[key] || key}
+        ok={true}
+        detail={fmtLast(val.lastSuccessAt)}
+      />
+    );
+  }
+  return out;
 }
 
 function fmtLast(iso) {

@@ -62,11 +62,9 @@ function diagnose(s) {
       reasons: [s.connections.kv.error || "Upstash Redis returned an error."],
     };
   }
-  if (!s.connections.postBridge.configured) {
-    reasons.push("Post Bridge API key not set on this app.");
-    severity = "error";
-    headline = "Post Bridge disconnected";
-  } else {
+  // Only warn about Post Bridge when the app actually uses it AND has a real
+  // recent failure. Absence of a token means "app doesn't use it", not "broken".
+  if (s.connections.postBridge.configured) {
     const lastSuccess = s.connections.postBridge.lastSuccessAt
       ? Date.parse(s.connections.postBridge.lastSuccessAt) : 0;
     const lastFailure = s.connections.postBridge.lastFailureAt
@@ -86,10 +84,10 @@ function diagnose(s) {
       if (severity === "healthy") { severity = "warn"; headline = "Post Bridge quiet"; }
     }
   }
-  if (!s.connections.apify.configured) {
-    reasons.push("Apify token not set on this app.");
-    if (severity === "healthy") { severity = "warn"; headline = "Apify disconnected"; }
-  }
+  // Apify: "not configured" ≠ "broken". Many apps genuinely don't use Apify,
+  // so absence of APIFY_TOKEN is not a warning signal. Only real failures
+  // surfaced by the app (in future via a lastFailureAt) should downgrade.
+
   if (s.counts.silentMissCount > 0) {
     reasons.push(`${s.counts.silentMissCount} automation${s.counts.silentMissCount === 1 ? "" : "s"} missed a scheduled fire.`);
     if (severity === "healthy") { severity = "warn"; headline = "Cron missed slots"; }
