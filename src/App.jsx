@@ -222,7 +222,7 @@ function SignIn() {
 
 function Main({ session }) {
   const userId = session.user.id;
-  const [tab, setTab] = useState("apps");
+  const [tab, setTab] = useState("manager");
   const [apps, setApps] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -385,6 +385,9 @@ function Main({ session }) {
       </div>
 
       <div style={S.tabs}>
+        <button onClick={() => { setTab("manager"); reset(); }} style={{ ...S.tabBtn, ...(tab === "manager" ? S.tabActive : {}) }}>
+          Manager
+        </button>
         <button onClick={() => { setTab("apps"); reset(); }} style={{ ...S.tabBtn, ...(tab === "apps" ? S.tabActive : {}) }}>
           Apps{apps.length > 0 ? ` (${apps.length})` : ""}
         </button>
@@ -396,9 +399,6 @@ function Main({ session }) {
         </button>
         <button onClick={() => { setTab("prompt"); reset(); }} style={{ ...S.tabBtn, ...(tab === "prompt" ? S.tabActive : {}) }}>
           Prompt
-        </button>
-        <button onClick={() => { setTab("manager"); reset(); }} style={{ ...S.tabBtn, ...(tab === "manager" ? S.tabActive : {}) }}>
-          Manager
         </button>
       </div>
 

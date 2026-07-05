@@ -97,9 +97,12 @@ function diagnose(s) {
     reasons.push(`${s.counts.failingCount} recent post${s.counts.failingCount === 1 ? "" : "s"} failed and not yet recovered.`);
     if (severity === "healthy") { severity = "warn"; headline = "Recent post failures"; }
   }
-  if (s.counts.automationsEnabled === 0) {
-    reasons.push("No automations are enabled on this app.");
-    if (severity === "healthy") { severity = "warn"; headline = "Nothing scheduled"; }
+  // Only warn about "nothing scheduled" when the app explicitly reports
+  // automations exist but they're all disabled. An empty automations array
+  // means the endpoint hasn't populated it, not that the app is idle.
+  if (s.counts.automationsTotal > 0 && s.counts.automationsEnabled === 0) {
+    reasons.push("All automations on this app are disabled.");
+    if (severity === "healthy") { severity = "warn"; headline = "All automations off"; }
   }
   return { severity, headline, reasons };
 }
