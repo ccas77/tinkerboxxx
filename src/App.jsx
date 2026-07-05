@@ -877,11 +877,19 @@ function Manager({ session }) {
     <div style={S.fadeIn}>
       <div style={M.header}>
         <div style={M.summary}>
-          <strong>{report.summary.total}</strong> app{report.summary.total === 1 ? "" : "s"}
-          {" · "}
-          <span style={{ color: "#166534" }}>{report.summary.healthy} healthy</span>{" · "}
-          <span style={{ color: "#8a5a00" }}>{report.summary.warn} warn</span>{" · "}
-          <span style={{ color: "#b1281f" }}>{report.summary.error} error</span>
+          <div>
+            <strong>{report.summary.total}</strong> app{report.summary.total === 1 ? "" : "s"}
+            {" · "}
+            <span style={{ color: "#166534" }}>{report.summary.healthy} healthy</span>{" · "}
+            <span style={{ color: "#8a5a00" }}>{report.summary.warn} warn</span>{" · "}
+            <span style={{ color: "#b1281f" }}>{report.summary.error} error</span>
+          </div>
+          {report.crossCheck && (
+            <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 3 }}>
+              Post Bridge cross-check: {report.crossCheck.postIdsMatchedInPB}/{report.crossCheck.postIdsChecked} claimed posts matched
+              {report.crossCheck.error ? ` · error: ${report.crossCheck.error}` : ""}
+            </div>
+          )}
         </div>
         <button style={M.refreshBtn} onClick={load} disabled={loading}>
           {loading ? "Refreshing…" : "Refresh"}
@@ -965,9 +973,30 @@ function ManagerAppCard({ a, expanded, onToggle }) {
             {s.counts.automationsTotal > 0 && (
               <Metric label="Silent miss" value={s.counts.silentMissCount} tone={s.counts.silentMissCount > 0 ? "warn" : undefined} />
             )}
-            <Metric label="Posts 24h" value={s.counts.posts24h} />
-            <Metric label="Posts 7d" value={s.counts.posts7d} />
-            <Metric label="Failing" value={s.counts.failingCount} tone={s.counts.failingCount > 0 ? "error" : undefined} />
+            {a.crossCheck ? (
+              <>
+                <Metric
+                  label="Confirmed 24h"
+                  value={`${a.crossCheck.confirmed24h}/${a.crossCheck.claimed24h}`}
+                />
+                <Metric
+                  label="PB rejected 24h"
+                  value={a.crossCheck.rejectedByPB24h}
+                  tone={a.crossCheck.rejectedByPB24h > 0 ? "error" : undefined}
+                />
+                <Metric
+                  label="Missing from PB"
+                  value={a.crossCheck.missingFromPB24h}
+                  tone={a.crossCheck.missingFromPB24h > 0 ? "error" : undefined}
+                />
+              </>
+            ) : (
+              <>
+                <Metric label="Claimed 24h" value={s.counts.posts24h} />
+                <Metric label="Claimed 7d" value={s.counts.posts7d} />
+                <Metric label="App-side failing" value={s.counts.failingCount} tone={s.counts.failingCount > 0 ? "error" : undefined} />
+              </>
+            )}
           </div>
           <div style={M.badgeRow}>
             {renderBadges(s.connections)}
@@ -980,11 +1009,39 @@ function ManagerAppCard({ a, expanded, onToggle }) {
               </ul>
             </div>
           )}
-          {(s.counts.silentMissCount > 0 || s.counts.failingCount > 0) && (
+          {(s.counts.silentMissCount > 0 || s.counts.failingCount > 0 || (a.crossCheck && (a.crossCheck.rejectedByPB24h > 0 || a.crossCheck.missingFromPB24h > 0))) && (
             <button style={M.expandBtn} onClick={onToggle}>{expanded ? "Hide detail" : "Show detail"}</button>
           )}
           {expanded && (
             <>
+              {a.crossCheck && a.crossCheck.rejectedDetail.length > 0 && (
+                <div style={M.detailBox}>
+                  <div style={M.detailLabel}>Rejected by Post Bridge (last 24h)</div>
+                  <ul style={M.detailList}>
+                    {a.crossCheck.rejectedDetail.map((r, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        <code style={M.code}>{r.id}</code>
+                        {r.target ? ` · ${r.target}` : ""} · {shortDate(r.postedAt)}
+                        {" · "}
+                        <span style={{ color: "#b1281f" }}>{r.error.slice(0, 160)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {a.crossCheck && a.crossCheck.missingDetail.length > 0 && (
+                <div style={M.detailBox}>
+                  <div style={M.detailLabel}>Claimed but no record in Post Bridge (last 24h)</div>
+                  <ul style={M.detailList}>
+                    {a.crossCheck.missingDetail.map((r, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        <code style={M.code}>{r.id}</code>
+                        {r.target ? ` · ${r.target}` : ""} · {shortDate(r.postedAt)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {s.automations.filter(x => x.silentMiss).length > 0 && (
                 <div style={M.detailBox}>
                   <div style={M.detailLabel}>Silent misses</div>

@@ -1,11 +1,106 @@
 import { createClient } from "@supabase/supabase-js";
+import { pbFetch } from "./analytics.js";
 
 // Reads APP_REGISTRY (JSON array of { name, url, token }), fans out to each
-// app's /api/status, aggregates + diagnoses, and independently probes Post
-// Bridge and Apify reachability from tinkerboxxx.
+// app's /api/status, then cross-checks every claimed post against Post Bridge
+// directly. The delta between what an app claims and what Post Bridge confirms
+// is the actual signal.
 
 const FETCH_TIMEOUT_MS = 10_000;
-const STALE_HOURS = 24;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const POSTBRIDGE_QUERY_CHUNK = 20; // multi-value post_id filter per request
+
+// Ask Post Bridge for delivery results of a specific set of post IDs. Chunks
+// the request so we don't blow the URL length limit, throttled + retried via
+// pbFetch. Returns a Map keyed by post_id → array of post_result rows.
+async function fetchPBResultsForPostIds(postIds) {
+  const map = new Map();
+  if (!postIds || postIds.size === 0) return map;
+  const arr = [...postIds];
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += POSTBRIDGE_QUERY_CHUNK) {
+    chunks.push(arr.slice(i, i + POSTBRIDGE_QUERY_CHUNK));
+  }
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const qs = new URLSearchParams();
+      qs.set("limit", "100");
+      for (const id of chunk) qs.append("post_id", id);
+      let r;
+      try {
+        r = await pbFetch(`/v1/post-results?${qs}`);
+      } catch (e) {
+        // If a chunk fails we skip it; cross-check will report the affected
+        // post IDs as "missing from Post Bridge" which is a real signal on
+        // its own even without more detail.
+        return;
+      }
+      for (const row of r.data || []) {
+        const pid = row.post_id;
+        if (!pid) continue;
+        if (!map.has(pid)) map.set(pid, []);
+        map.get(pid).push(row);
+      }
+    })
+  );
+  return map;
+}
+
+function crossCheckApp(status, pbResultsMap) {
+  const now = Date.now();
+  const stats = {
+    claimed24h: 0,
+    claimed7d: 0,
+    confirmed24h: 0,
+    confirmed7d: 0,
+    rejectedByPB24h: 0,
+    missingFromPB24h: 0,
+    rejectedDetail: [],
+    missingDetail: [],
+  };
+  const claimed = status?.posts?.recent || [];
+  for (const p of claimed) {
+    if (!p.lastPostedAt) continue;
+    const t = Date.parse(p.lastPostedAt);
+    if (!Number.isFinite(t)) continue;
+    const in24h = t > now - DAY_MS;
+    const in7d = t > now - 7 * DAY_MS;
+    if (in24h) stats.claimed24h += 1;
+    if (in7d) stats.claimed7d += 1;
+
+    const pbId = p.lastPostId;
+    if (!pbId) continue; // No PB id → app never had one to cross-check
+    const rows = pbResultsMap.get(pbId);
+    if (!rows || rows.length === 0) {
+      if (in24h) {
+        stats.missingFromPB24h += 1;
+        if (stats.missingDetail.length < 10) {
+          stats.missingDetail.push({ id: pbId, postedAt: p.lastPostedAt, target: p.originHandle || null });
+        }
+      }
+      continue;
+    }
+    const anySuccess = rows.some((r) => r.success === true);
+    if (anySuccess) {
+      if (in24h) stats.confirmed24h += 1;
+      if (in7d) stats.confirmed7d += 1;
+    } else {
+      if (in24h) {
+        stats.rejectedByPB24h += 1;
+        if (stats.rejectedDetail.length < 10) {
+          const firstErr = rows.find((r) => r.error);
+          stats.rejectedDetail.push({
+            id: pbId,
+            postedAt: p.lastPostedAt,
+            target: p.originHandle || null,
+            error: firstErr?.error ? JSON.stringify(firstErr.error).slice(0, 200) : "unknown",
+          });
+        }
+      }
+    }
+  }
+  return stats;
+}
 
 function loadRegistry() {
   const raw = process.env.APP_REGISTRY;
@@ -48,12 +143,12 @@ function humanAgo(iso) {
   return `${d}d ago`;
 }
 
-function diagnose(s) {
+function diagnose(s, xcheck) {
   const reasons = [];
   let severity = "healthy";
   let headline = "Healthy";
   const now = Date.now();
-  const staleCutoff = now - STALE_HOURS * 60 * 60 * 1000;
+  const staleCutoff = now - 24 * 60 * 60 * 1000;
 
   if (!s.connections.kv.reachable) {
     return {
@@ -104,6 +199,42 @@ function diagnose(s) {
     reasons.push("All automations on this app are disabled.");
     if (severity === "healthy") { severity = "warn"; headline = "All automations off"; }
   }
+
+  // Post Bridge cross-check signals. These override softer reasons because
+  // they compare what the app claims against what Post Bridge actually
+  // delivered — the honest signal.
+  if (xcheck) {
+    if (xcheck.rejectedByPB24h > 0) {
+      reasons.unshift(
+        `${xcheck.rejectedByPB24h} post${xcheck.rejectedByPB24h === 1 ? "" : "s"} rejected by Post Bridge in the last 24h despite the app logging success.`
+      );
+      severity = "error";
+      headline = "Post Bridge rejected posts";
+    }
+    if (xcheck.missingFromPB24h > 0) {
+      reasons.unshift(
+        `${xcheck.missingFromPB24h} claim${xcheck.missingFromPB24h === 1 ? "" : "s"} in the last 24h have no matching record in Post Bridge (silent failure).`
+      );
+      if (severity !== "error") {
+        severity = "error";
+        headline = "Silent failure vs Post Bridge";
+      }
+    }
+    if (
+      xcheck.claimed24h > 0 &&
+      xcheck.confirmed24h === 0 &&
+      xcheck.rejectedByPB24h === 0 &&
+      xcheck.missingFromPB24h === 0
+    ) {
+      // App claimed posts in 24h and PB has some record for each, but none
+      // are confirmed successful yet. Likely still processing on the platform
+      // side. Neutral.
+      reasons.push(
+        `${xcheck.claimed24h} claimed post${xcheck.claimed24h === 1 ? "" : "s"} still processing at Post Bridge.`
+      );
+    }
+  }
+
   return { severity, headline, reasons };
 }
 
@@ -136,7 +267,10 @@ async function fetchOneApp(entry) {
     const status = await res.json();
     return {
       name: entry.name, url: entry.url, fetchedAt: new Date().toISOString(),
-      reachable: true, httpStatus: 200, fetchMs, status, diagnosis: diagnose(status),
+      reachable: true, httpStatus: 200, fetchMs, status,
+      // Cross-check + diagnosis are attached later in aggregateAll() once we
+      // have all apps and can batch-query Post Bridge for their combined
+      // claimed post IDs.
     };
   } catch (e) {
     const timedOut = e.name === "AbortError";
@@ -192,11 +326,48 @@ export default async function handler(req, res) {
       probe("Apify", "https://api.apify.com/v2/acts?limit=1"),
     ]),
   ]);
+
+  // Post Bridge cross-check. Gather every claimed post ID across every
+  // reachable app, batch-query Post Bridge in one go (throttled and retried
+  // by pbFetch), then compute per-app reconciliation.
+  const wantedIds = new Set();
+  for (const a of apps) {
+    if (!a.reachable || !a.status?.posts?.recent) continue;
+    for (const p of a.status.posts.recent) {
+      if (p.lastPostId) wantedIds.add(p.lastPostId);
+    }
+  }
+
+  let pbResultsMap = new Map();
+  let pbCrossCheckError = null;
+  if (wantedIds.size > 0 && process.env.POSTBRIDGE_API_KEY) {
+    try {
+      pbResultsMap = await fetchPBResultsForPostIds(wantedIds);
+    } catch (e) {
+      pbCrossCheckError = e.message;
+    }
+  } else if (!process.env.POSTBRIDGE_API_KEY) {
+    pbCrossCheckError = "POSTBRIDGE_API_KEY not set on tinkerboxxx";
+  }
+
+  // Attach cross-check + diagnosis to each app now that we can reconcile.
+  for (const a of apps) {
+    if (a.reachable && a.status) {
+      a.crossCheck = crossCheckApp(a.status, pbResultsMap);
+      a.diagnosis = diagnose(a.status, a.crossCheck);
+    }
+  }
+
   const summary = { total: apps.length, healthy: 0, warn: 0, error: 0 };
   for (const a of apps) summary[a.diagnosis.severity] += 1;
 
   return res.status(200).json({
     generatedAt: new Date().toISOString(),
     apps, platforms, summary,
+    crossCheck: {
+      postIdsChecked: wantedIds.size,
+      postIdsMatchedInPB: pbResultsMap.size,
+      error: pbCrossCheckError,
+    },
   });
 }
