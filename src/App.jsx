@@ -959,8 +959,12 @@ function ManagerAppCard({ a, expanded, onToggle }) {
       ) : s ? (
         <div style={{ paddingLeft: 12 }}>
           <div style={M.metricRow}>
-            <Metric label="Automations" value={`${s.counts.automationsEnabled}/${s.counts.automationsTotal}`} />
-            <Metric label="Silent miss" value={s.counts.silentMissCount} tone={s.counts.silentMissCount > 0 ? "warn" : undefined} />
+            {s.counts.automationsTotal > 0 && (
+              <Metric label="Automations" value={`${s.counts.automationsEnabled}/${s.counts.automationsTotal}`} />
+            )}
+            {s.counts.automationsTotal > 0 && (
+              <Metric label="Silent miss" value={s.counts.silentMissCount} tone={s.counts.silentMissCount > 0 ? "warn" : undefined} />
+            )}
             <Metric label="Posts 24h" value={s.counts.posts24h} />
             <Metric label="Posts 7d" value={s.counts.posts7d} />
             <Metric label="Failing" value={s.counts.failingCount} tone={s.counts.failingCount > 0 ? "error" : undefined} />
@@ -1120,7 +1124,7 @@ const M = {
   appName: { fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#18181b" },
   appSub: { fontSize: 11, color: "#a1a1aa", marginTop: 3, fontFamily: "'IBM Plex Mono', monospace" },
   metricRow: {
-    display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 10,
+    display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 10,
   },
   badgeRow: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 },
   reasonsBox: {
