@@ -397,10 +397,14 @@ function Main({ session }) {
         <button onClick={() => { setTab("prompt"); reset(); }} style={{ ...S.tabBtn, ...(tab === "prompt" ? S.tabActive : {}) }}>
           Prompt
         </button>
+        <button onClick={() => { setTab("manager"); reset(); }} style={{ ...S.tabBtn, ...(tab === "manager" ? S.tabActive : {}) }}>
+          Manager
+        </button>
       </div>
 
       {tab === "stats" && <Stats session={session} />}
       {tab === "prompt" && <PromptTool session={session} />}
+      {tab === "manager" && <Manager session={session} />}
 
       {tab === "apps" && (
         <div style={S.fadeIn}>
@@ -832,6 +836,288 @@ function PromptTool({ session }) {
     </div>
   );
 }
+
+function Manager({ session }) {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState({});
+
+  async function load() {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/aggregate", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed to load");
+      setReport(j);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  function toggle(name) {
+    setExpanded(prev => ({ ...prev, [name]: !prev[name] }));
+  }
+
+  if (loading && !report) return <div style={M.state}>Loading manager…</div>;
+  if (error) return <div style={{ ...M.state, color: "#b1281f" }}>{error}</div>;
+  if (!report) return null;
+
+  return (
+    <div style={S.fadeIn}>
+      <div style={M.header}>
+        <div style={M.summary}>
+          <strong>{report.summary.total}</strong> app{report.summary.total === 1 ? "" : "s"}
+          {" · "}
+          <span style={{ color: "#166534" }}>{report.summary.healthy} healthy</span>{" · "}
+          <span style={{ color: "#8a5a00" }}>{report.summary.warn} warn</span>{" · "}
+          <span style={{ color: "#b1281f" }}>{report.summary.error} error</span>
+        </div>
+        <button style={M.refreshBtn} onClick={load} disabled={loading}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      <div style={M.sectionLabel}>Platform reachability</div>
+      <div style={M.platformGrid}>
+        {report.platforms.map(p => (
+          <div key={p.name} style={{
+            background: p.ok ? "#e8f5ee" : "#fdeceb",
+            border: `1px solid ${p.ok ? "#bbdec7" : "#f3b8b1"}`,
+            borderRadius: 10, padding: "10px 14px", display: "flex",
+            justifyContent: "space-between", alignItems: "center",
+          }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: p.ok ? "#166534" : "#b1281f" }}>
+              {p.name}
+            </span>
+            <span style={{ fontSize: 11, color: p.ok ? "#166534" : "#b1281f", opacity: 0.9 }}>
+              {p.ok ? "Reachable" : "Unreachable"}
+              {p.detail ? ` · ${p.detail}` : ""}
+              {typeof p.latencyMs === "number" ? ` · ${p.latencyMs}ms` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {report.apps.length === 0 ? (
+        <div style={M.emptyBox}>
+          No apps in the registry. Set the <code style={M.code}>APP_REGISTRY</code> env
+          var on this project to a JSON array of {"{"} name, url, token {"}"} objects.
+        </div>
+      ) : (
+        <>
+          <div style={M.sectionLabel}>Apps</div>
+          {report.apps.map(a => <ManagerAppCard key={a.name} a={a} expanded={!!expanded[a.name]} onToggle={() => toggle(a.name)} />)}
+        </>
+      )}
+
+      <div style={M.footer}>Last refreshed {new Date(report.generatedAt).toLocaleTimeString()}</div>
+    </div>
+  );
+}
+
+function ManagerAppCard({ a, expanded, onToggle }) {
+  const sev = a.diagnosis.severity;
+  const chip = sev === "healthy"
+    ? { bg: "#e8f5ee", fg: "#166534", border: "#bbdec7" }
+    : sev === "warn"
+    ? { bg: "#fef7e0", fg: "#8a5a00", border: "#f4d67f" }
+    : { bg: "#fdeceb", fg: "#b1281f", border: "#f3b8b1" };
+  const s = a.status;
+  return (
+    <div style={M.card}>
+      <div style={{ ...M.cardStripe, background: chip.fg }} />
+      <div style={M.cardHeader}>
+        <div>
+          <div style={M.appName}>{a.name}</div>
+          <div style={M.appSub}>
+            {a.url.replace(/^https?:\/\//, "")}
+            {s?.app?.cron ? ` · ${s.app.cron}` : ""}
+            {a.fetchMs ? ` · ${a.fetchMs}ms` : ""}
+          </div>
+        </div>
+        <span style={{
+          background: chip.bg, color: chip.fg, border: `1px solid ${chip.border}`,
+          borderRadius: 999, fontSize: 11, fontWeight: 600, padding: "4px 10px",
+        }}>{a.diagnosis.headline}</span>
+      </div>
+
+      {!a.reachable ? (
+        <div style={{ paddingLeft: 12, fontSize: 13, color: "#b1281f" }}>
+          {a.fetchErrorMessage || "Unreachable"}
+        </div>
+      ) : s ? (
+        <div style={{ paddingLeft: 12 }}>
+          <div style={M.metricRow}>
+            <Metric label="Automations" value={`${s.counts.automationsEnabled}/${s.counts.automationsTotal}`} />
+            <Metric label="Silent miss" value={s.counts.silentMissCount} tone={s.counts.silentMissCount > 0 ? "warn" : undefined} />
+            <Metric label="Posts 24h" value={s.counts.posts24h} />
+            <Metric label="Posts 7d" value={s.counts.posts7d} />
+            <Metric label="Failing" value={s.counts.failingCount} tone={s.counts.failingCount > 0 ? "error" : undefined} />
+          </div>
+          <div style={M.badgeRow}>
+            <ConnBadge label="KV" ok={s.connections.kv.reachable} detail={s.connections.kv.error} />
+            <ConnBadge label="PB" ok={s.connections.postBridge.configured} detail={fmtLast(s.connections.postBridge.lastSuccessAt)} />
+            <ConnBadge label="Apify" ok={s.connections.apify.configured} detail={fmtLast(s.connections.apify.lastSuccessAt)} />
+          </div>
+          {a.diagnosis.reasons.length > 0 && (
+            <div style={M.reasonsBox}>
+              <div style={M.reasonsLabel}>Diagnosis</div>
+              <ul style={M.reasonsList}>
+                {a.diagnosis.reasons.map((r, i) => <li key={i} style={{ marginBottom: 4 }}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+          {(s.counts.silentMissCount > 0 || s.counts.failingCount > 0) && (
+            <button style={M.expandBtn} onClick={onToggle}>{expanded ? "Hide detail" : "Show detail"}</button>
+          )}
+          {expanded && (
+            <>
+              {s.automations.filter(x => x.silentMiss).length > 0 && (
+                <div style={M.detailBox}>
+                  <div style={M.detailLabel}>Silent misses</div>
+                  <ul style={M.detailList}>
+                    {s.automations.filter(x => x.silentMiss).map(x => (
+                      <li key={x.id} style={{ marginBottom: 4 }}>
+                        <strong>{x.name}</strong> · expected {x.expectedFireAt ? shortDate(x.expectedFireAt) : "?"} · last fired {x.lastFiredAt ? shortDate(x.lastFiredAt) : "never"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {s.posts.failing.length > 0 && (
+                <div style={M.detailBox}>
+                  <div style={M.detailLabel}>Failing posts</div>
+                  <ul style={M.detailList}>
+                    {s.posts.failing.slice(0, 20).map(f => (
+                      <li key={f.id} style={{ marginBottom: 4 }}>
+                        <code style={M.code}>{f.id}</code>
+                        {f.retryCount ? ` (retry ${f.retryCount})` : ""}
+                        {" · "}
+                        <span style={{ color: "#b1281f" }}>{(f.lastError || "").slice(0, 160)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Metric({ label, value, tone }) {
+  const color = tone === "error" ? "#b1281f" : tone === "warn" ? "#8a5a00" : "#18181b";
+  return (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", color }}>{value}</div>
+      <div style={{ fontSize: 10, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+function ConnBadge({ label, ok, detail }) {
+  const bg = ok ? "#e8f5ee" : "#fdeceb";
+  const fg = ok ? "#166534" : "#b1281f";
+  return (
+    <div style={{ background: bg, color: fg, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 600 }}>
+      {label}{detail ? <span style={{ fontWeight: 400, opacity: 0.85 }}> · {detail}</span> : null}
+    </div>
+  );
+}
+
+function fmtLast(iso) {
+  if (!iso) return "no success on record";
+  const delta = Date.now() - Date.parse(iso);
+  const m = Math.floor(delta / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+function shortDate(iso) {
+  return new Date(iso).toLocaleString("en-GB", {
+    weekday: "short", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short",
+  });
+}
+
+const M = {
+  state: { textAlign: "center", padding: 60, color: "#a1a1aa" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12 },
+  summary: { fontSize: 13, color: "#71717a" },
+  refreshBtn: {
+    background: "linear-gradient(135deg, #f59e0b, #d97706)", color: "#fff", border: "none",
+    borderRadius: 999, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+    fontFamily: "'Instrument Sans', sans-serif",
+  },
+  sectionLabel: {
+    fontSize: 10, fontWeight: 700, color: "#a1a1aa", textTransform: "uppercase",
+    letterSpacing: "0.08em", marginBottom: 10, marginTop: 8,
+  },
+  platformGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 },
+  card: {
+    background: "#fff", borderRadius: 16, border: "1px solid #e4e4e7",
+    padding: 18, marginBottom: 12, position: "relative", overflow: "hidden",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  },
+  cardStripe: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
+  cardHeader: {
+    display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+    marginBottom: 12, paddingLeft: 12, gap: 12,
+  },
+  appName: { fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#18181b" },
+  appSub: { fontSize: 11, color: "#a1a1aa", marginTop: 3, fontFamily: "'IBM Plex Mono', monospace" },
+  metricRow: {
+    display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 10,
+  },
+  badgeRow: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 },
+  reasonsBox: {
+    background: "#fafaf9", borderRadius: 10, padding: "10px 12px",
+    border: "1px solid #e4e4e7", marginBottom: 8,
+  },
+  reasonsLabel: {
+    fontSize: 10, fontWeight: 700, color: "#71717a", textTransform: "uppercase",
+    letterSpacing: "0.05em", marginBottom: 6,
+  },
+  reasonsList: { margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.55, color: "#3d4a54" },
+  expandBtn: {
+    background: "transparent", border: "1px solid #e4e4e7", color: "#71717a",
+    borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
+    fontFamily: "'Instrument Sans', sans-serif", marginBottom: 8,
+  },
+  detailBox: {
+    background: "#fafaf9", borderRadius: 10, padding: "10px 12px",
+    border: "1px solid #e4e4e7", marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 10, fontWeight: 700, color: "#71717a", textTransform: "uppercase",
+    letterSpacing: "0.05em", marginBottom: 6,
+  },
+  detailList: { margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.5, color: "#3d4a54" },
+  code: {
+    background: "#f4f4f5", padding: "1px 5px", borderRadius: 4,
+    fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
+  },
+  emptyBox: {
+    background: "#fff", border: "1px dashed #d4d4d8", borderRadius: 14,
+    padding: 24, color: "#71717a", fontSize: 13,
+  },
+  footer: { fontSize: 11, color: "#a1a1aa", textAlign: "center", marginTop: 16 },
+};
 
 function Stats({ session }) {
   const [timeframe, setTimeframe] = useState("24h");
