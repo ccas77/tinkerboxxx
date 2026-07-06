@@ -222,7 +222,9 @@ function diagnose(s) {
       severity = "warn";
       headline = "Yesterday data missing";
     }
-    if (y.attemptGap > 0) {
+    if (y.planned === null || y.planned === undefined) {
+      reasons.push("Planned count is not tracked by this app for past days (the schedule log expires overnight).");
+    } else if (y.attemptGap > 0) {
       reasons.push(`${y.attemptGap} scheduled slot${y.attemptGap === 1 ? "" : "s"} yesterday did not attempt a post. The cron did not fire, or the run was skipped.`);
       severity = "error";
       headline = "Cron missed slots";

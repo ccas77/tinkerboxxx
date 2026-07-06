@@ -972,14 +972,14 @@ function ManagerAppCard({ a, expanded, onToggle }) {
               <div style={M.metricRow}>
                 <Metric
                   label="Posts planned"
-                  value={s.yesterday.planned}
+                  value={s.yesterday.planned === null || s.yesterday.planned === undefined ? "—" : s.yesterday.planned}
                   hint="What the schedule said should fire"
                 />
                 <Metric
                   label="Posts attempted"
                   value={s.yesterday.attempted}
                   hint="What the app tried to make"
-                  tone={s.yesterday.attemptGap > 0 ? "warn" : undefined}
+                  tone={s.yesterday.attemptGap && s.yesterday.attemptGap > 0 ? "warn" : undefined}
                 />
                 <Metric
                   label="Posts confirmed"
