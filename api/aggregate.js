@@ -201,12 +201,10 @@ function humanAgo(iso) {
   return `${d}d ago`;
 }
 
-function diagnose(s, xcheck) {
+function diagnose(s) {
   const reasons = [];
   let severity = "healthy";
   let headline = "Healthy";
-  const now = Date.now();
-  const staleCutoff = now - 24 * 60 * 60 * 1000;
 
   if (!s.connections.kv.reachable) {
     return {
@@ -215,75 +213,47 @@ function diagnose(s, xcheck) {
       reasons: [s.connections.kv.error || "Upstash Redis returned an error."],
     };
   }
-  // Only warn about Post Bridge when the app actually uses it AND has a real
-  // recent failure. Absence of a token means "app doesn't use it", not "broken".
-  if (s.connections.postBridge.configured) {
-    const lastSuccess = s.connections.postBridge.lastSuccessAt
-      ? Date.parse(s.connections.postBridge.lastSuccessAt) : 0;
-    const lastFailure = s.connections.postBridge.lastFailureAt
-      ? Date.parse(s.connections.postBridge.lastFailureAt) : 0;
-    if (lastFailure > lastSuccess && lastFailure > now - 30 * 60 * 1000) {
-      reasons.push(
-        `Post Bridge last failed ${humanAgo(s.connections.postBridge.lastFailureAt)} and hasn't succeeded since${
-          s.connections.postBridge.lastErrorMessage
-            ? `: ${String(s.connections.postBridge.lastErrorMessage).slice(0, 120)}`
-            : "."
-        }`
-      );
-      severity = "error";
-      headline = "Post Bridge failing";
-    } else if (lastSuccess && lastSuccess < staleCutoff) {
-      reasons.push(`Post Bridge last succeeded ${humanAgo(s.connections.postBridge.lastSuccessAt)}, over 24h ago.`);
-      if (severity === "healthy") { severity = "warn"; headline = "Post Bridge quiet"; }
-    }
-  }
-  // Apify: "not configured" ≠ "broken". Many apps genuinely don't use Apify,
-  // so absence of APIFY_TOKEN is not a warning signal. Only real failures
-  // surfaced by the app (in future via a lastFailureAt) should downgrade.
 
-  if (s.counts.silentMissCount > 0) {
-    reasons.push(`${s.counts.silentMissCount} automation${s.counts.silentMissCount === 1 ? "" : "s"} missed a scheduled fire.`);
-    if (severity === "healthy") { severity = "warn"; headline = "Cron missed slots"; }
-    else if (severity !== "error") headline = "Cron missed slots";
-  }
-  if (s.counts.failingCount > 0) {
-    reasons.push(`${s.counts.failingCount} recent post${s.counts.failingCount === 1 ? "" : "s"} failed and not yet recovered.`);
-    if (severity === "healthy") { severity = "warn"; headline = "Recent post failures"; }
-  }
-  // Only warn about "nothing scheduled" when the app explicitly reports
-  // automations exist but they're all disabled. An empty automations array
-  // means the endpoint hasn't populated it, not that the app is idle.
-  if (s.counts.automationsTotal > 0 && s.counts.automationsEnabled === 0) {
-    reasons.push("All automations on this app are disabled.");
-    if (severity === "healthy") { severity = "warn"; headline = "All automations off"; }
-  }
-
-  // Post Bridge cross-check signals. These compare what the app claims
-  // against what Post Bridge actually holds — the honest signal.
-  if (xcheck) {
-    if (xcheck.rejectedByPB24h > 0) {
-      reasons.unshift(
-        `${xcheck.rejectedByPB24h} post${xcheck.rejectedByPB24h === 1 ? "" : "s"} rejected at delivery by Post Bridge in the last 24h.`
-      );
-      severity = "error";
-      headline = "Post Bridge rejected posts";
+  // Yesterday-based diagnosis. Planned vs attempted vs confirmed.
+  if (s.yesterday) {
+    const y = s.yesterday;
+    if (y.error) {
+      reasons.push(`Yesterday data unavailable: ${y.error}.`);
+      severity = "warn";
+      headline = "Yesterday data missing";
     }
-    if (xcheck.missingFromPB24h > 0) {
-      reasons.unshift(
-        `${xcheck.missingFromPB24h} claim${xcheck.missingFromPB24h === 1 ? "" : "s"} in the last 24h have no matching post in Post Bridge (real silent failure).`
-      );
-      if (severity !== "error") {
-        severity = "error";
+    if (y.attemptGap > 0) {
+      reasons.push(`${y.attemptGap} scheduled slot${y.attemptGap === 1 ? "" : "s"} yesterday did not attempt a post. The cron did not fire, or the run was skipped.`);
+      severity = "error";
+      headline = "Cron missed slots";
+    }
+    if (y.confirmGap > 0) {
+      reasons.push(`${y.confirmGap} attempted post${y.confirmGap === 1 ? "" : "s"} yesterday have no confirmed delivery in Post Bridge. Silent failure between the app and Post Bridge.`);
+      if (severity !== "error") severity = "error";
+      headline = severity === "error" ? headline : "Silent failure vs Post Bridge";
+      if (headline === "Cron missed slots" && y.confirmGap > 0) {
+        headline = "Cron misses + silent failures";
+      } else if (!headline || headline === "Healthy") {
         headline = "Silent failure vs Post Bridge";
       }
     }
-    if (xcheck.queuedAtPB24h > 0) {
-      reasons.push(
-        `${xcheck.queuedAtPB24h} post${xcheck.queuedAtPB24h === 1 ? "" : "s"} queued at Post Bridge, waiting for scheduled_at.`
-      );
+    if (y.planned === 0 && y.attempted === 0) {
+      reasons.push("Nothing was planned or attempted yesterday.");
+      if (severity === "healthy") { severity = "warn"; headline = "Idle yesterday"; }
     }
+    return { severity, headline, reasons };
   }
-
+  // Only warn about Post Bridge when the app actually uses it AND has a real
+  // recent failure. Absence of a token means "app doesn't use it", not "broken".
+  // Fallback for apps whose /api/status doesn't yet include a yesterday block.
+  // Only surface honest signals: KV reachability above, and PB configuration.
+  // Everything else is deferred to the yesterday-aware code path.
+  if (s.counts && s.counts.automationsTotal > 0 && s.counts.automationsEnabled === 0) {
+    reasons.push("All automations on this app are disabled.");
+    if (severity === "healthy") { severity = "warn"; headline = "All automations off"; }
+  }
+  reasons.push("Yesterday's planned/attempted/confirmed not yet reported by this app.");
+  if (severity === "healthy") { severity = "warn"; headline = "Awaiting yesterday roll-out"; }
   return { severity, headline, reasons };
 }
 
@@ -385,7 +355,7 @@ export default async function handler(req, res) {
   for (const a of apps) {
     if (a.reachable && a.status) {
       a.crossCheck = a.status.crossCheck || null;
-      a.diagnosis = diagnose(a.status, a.crossCheck);
+      a.diagnosis = diagnose(a.status);
       if (a.crossCheck) {
         totalChecked += a.crossCheck.claimed24h || 0;
         totalConfirmed += a.crossCheck.confirmed24h || 0;

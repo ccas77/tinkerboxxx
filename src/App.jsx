@@ -966,42 +966,39 @@ function ManagerAppCard({ a, expanded, onToggle }) {
         </div>
       ) : s ? (
         <div style={{ paddingLeft: 12 }}>
-          <div style={M.metricRow}>
-            {s.counts.automationsTotal > 0 && (
-              <Metric label="Automations" value={`${s.counts.automationsEnabled}/${s.counts.automationsTotal}`} />
-            )}
-            {s.counts.automationsTotal > 0 && (
-              <Metric label="Silent miss" value={s.counts.silentMissCount} tone={s.counts.silentMissCount > 0 ? "warn" : undefined} />
-            )}
-            {a.crossCheck ? (
-              <>
+          {s.yesterday ? (
+            <>
+              <div style={M.yesterdayLabel}>Yesterday ({s.yesterday.date})</div>
+              <div style={M.metricRow}>
                 <Metric
-                  label="Confirmed 24h"
-                  value={`${a.crossCheck.confirmed24h}/${a.crossCheck.claimed24h}`}
+                  label="Posts planned"
+                  value={s.yesterday.planned}
+                  hint="What the schedule said should fire"
                 />
                 <Metric
-                  label="Queued at PB"
-                  value={a.crossCheck.queuedAtPB24h}
+                  label="Posts attempted"
+                  value={s.yesterday.attempted}
+                  hint="What the app tried to make"
+                  tone={s.yesterday.attemptGap > 0 ? "warn" : undefined}
                 />
                 <Metric
-                  label="PB rejected"
-                  value={a.crossCheck.rejectedByPB24h}
-                  tone={a.crossCheck.rejectedByPB24h > 0 ? "error" : undefined}
+                  label="Posts confirmed"
+                  value={s.yesterday.confirmed}
+                  hint="What went live on social media"
+                  tone={s.yesterday.confirmGap > 0 ? "error" : undefined}
                 />
-                <Metric
-                  label="Missing from PB"
-                  value={a.crossCheck.missingFromPB24h}
-                  tone={a.crossCheck.missingFromPB24h > 0 ? "error" : undefined}
-                />
-              </>
-            ) : (
-              <>
-                <Metric label="Claimed 24h" value={s.counts.posts24h} />
-                <Metric label="Claimed 7d" value={s.counts.posts7d} />
-                <Metric label="App-side failing" value={s.counts.failingCount} tone={s.counts.failingCount > 0 ? "error" : undefined} />
-              </>
-            )}
-          </div>
+              </div>
+              {s.yesterday.error && (
+                <div style={{ ...M.reasonsBox, background: "#fef7e0", borderColor: "#f4d67f", color: "#8a5a00", fontSize: 12 }}>
+                  Yesterday data: {s.yesterday.error}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ ...M.reasonsBox, fontSize: 12, color: "#a1a1aa" }}>
+              This app doesn't yet report yesterday's planned / attempted / confirmed. Roll-out pending.
+            </div>
+          )}
           <div style={M.badgeRow}>
             {renderBadges(s.connections)}
           </div>
@@ -1081,12 +1078,15 @@ function ManagerAppCard({ a, expanded, onToggle }) {
   );
 }
 
-function Metric({ label, value, tone }) {
+function Metric({ label, value, tone, hint }) {
   const color = tone === "error" ? "#b1281f" : tone === "warn" ? "#8a5a00" : "#18181b";
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", color }}>{value}</div>
-      <div style={{ fontSize: 10, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color }}>{value}</div>
+      <div style={{ fontSize: 10, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 3, fontWeight: 600 }}>{label}</div>
+      {hint && (
+        <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2, lineHeight: 1.3 }}>{hint}</div>
+      )}
     </div>
   );
 }
@@ -1166,6 +1166,10 @@ const M = {
     background: "linear-gradient(135deg, #f59e0b, #d97706)", color: "#fff", border: "none",
     borderRadius: 999, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer",
     fontFamily: "'Instrument Sans', sans-serif",
+  },
+  yesterdayLabel: {
+    fontSize: 10, fontWeight: 700, color: "#71717a", textTransform: "uppercase",
+    letterSpacing: "0.08em", marginBottom: 8, marginTop: 2,
   },
   sectionLabel: {
     fontSize: 10, fontWeight: 700, color: "#a1a1aa", textTransform: "uppercase",
