@@ -980,7 +980,11 @@ function ManagerAppCard({ a, expanded, onToggle }) {
                   value={`${a.crossCheck.confirmed24h}/${a.crossCheck.claimed24h}`}
                 />
                 <Metric
-                  label="PB rejected 24h"
+                  label="Queued at PB"
+                  value={a.crossCheck.queuedAtPB24h}
+                />
+                <Metric
+                  label="PB rejected"
                   value={a.crossCheck.rejectedByPB24h}
                   tone={a.crossCheck.rejectedByPB24h > 0 ? "error" : undefined}
                 />

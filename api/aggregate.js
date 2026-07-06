@@ -29,10 +29,7 @@ async function fetchPBResultsForPostIds(postIds) {
       let r;
       try {
         r = await pbFetch(`/v1/post-results?${qs}`);
-      } catch (e) {
-        // If a chunk fails we skip it; cross-check will report the affected
-        // post IDs as "missing from Post Bridge" which is a real signal on
-        // its own even without more detail.
+      } catch {
         return;
       }
       for (const row of r.data || []) {
@@ -46,17 +43,49 @@ async function fetchPBResultsForPostIds(postIds) {
   return map;
 }
 
-function crossCheckApp(status, pbResultsMap) {
+// Paginate /v1/posts newest-first to build a lookup of parent posts. A post
+// row includes its lifecycle status: scheduled → processing → posted. Without
+// this an app-claimed post that is legitimately queued for later today would
+// look identical to a genuinely lost post.
+async function fetchPBRecentPosts(maxPages = 10) {
+  const map = new Map();
+  let offset = 0;
+  const cutoff = Date.now() - 8 * DAY_MS;
+  for (let page = 0; page < maxPages; page++) {
+    let r;
+    try {
+      r = await pbFetch(`/v1/posts?limit=100&offset=${offset}`);
+    } catch {
+      break;
+    }
+    const rows = r.data || [];
+    for (const row of rows) {
+      if (row.id) map.set(row.id, row);
+    }
+    if (rows.length < 100) break;
+    // Stop early if the oldest post in the page is past the horizon we care
+    // about. Different apps may report differently-shaped created_at values.
+    const oldest = rows[rows.length - 1];
+    const oldestTs = oldest?.created_at ? Date.parse(oldest.created_at) : NaN;
+    if (Number.isFinite(oldestTs) && oldestTs < cutoff) break;
+    offset += 100;
+  }
+  return map;
+}
+
+function crossCheckApp(status, pbPostsMap, pbResultsMap) {
   const now = Date.now();
   const stats = {
     claimed24h: 0,
     claimed7d: 0,
     confirmed24h: 0,
     confirmed7d: 0,
+    queuedAtPB24h: 0,
     rejectedByPB24h: 0,
     missingFromPB24h: 0,
     rejectedDetail: [],
     missingDetail: [],
+    queuedDetail: [],
   };
   const claimed = status?.posts?.recent || [];
   for (const p of claimed) {
@@ -69,9 +98,16 @@ function crossCheckApp(status, pbResultsMap) {
     if (in7d) stats.claimed7d += 1;
 
     const pbId = p.lastPostId;
-    if (!pbId) continue; // No PB id → app never had one to cross-check
-    const rows = pbResultsMap.get(pbId);
-    if (!rows || rows.length === 0) {
+    if (!pbId) continue;
+
+    const pbPost = pbPostsMap.get(pbId);
+    const results = pbResultsMap.get(pbId) || [];
+
+    if (!pbPost && results.length === 0) {
+      // Post Bridge has no record of this ID at all. This is the real
+      // silent-failure signal: the app claims it posted but PB never saw the
+      // request. Only counts if PB itself has recent posts (i.e., we know the
+      // pagination window covered this timeframe).
       if (in24h) {
         stats.missingFromPB24h += 1;
         if (stats.missingDetail.length < 10) {
@@ -80,15 +116,36 @@ function crossCheckApp(status, pbResultsMap) {
       }
       continue;
     }
-    const anySuccess = rows.some((r) => r.success === true);
+
+    const anySuccess = results.some((r) => r.success === true);
+    const anyFailure = results.some((r) => r.success === false);
+    const status_ = pbPost?.status;
+
     if (anySuccess) {
       if (in24h) stats.confirmed24h += 1;
       if (in7d) stats.confirmed7d += 1;
-    } else {
+      continue;
+    }
+
+    if (results.length === 0 && (status_ === "scheduled" || status_ === "processing")) {
+      // Queued at PB, waiting for scheduled_at. This is fine, not a failure.
+      if (in24h) {
+        stats.queuedAtPB24h += 1;
+        if (stats.queuedDetail.length < 10) {
+          stats.queuedDetail.push({
+            id: pbId, postedAt: p.lastPostedAt, target: p.originHandle || null,
+            fireAt: pbPost?.scheduled_at || null,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (anyFailure) {
       if (in24h) {
         stats.rejectedByPB24h += 1;
         if (stats.rejectedDetail.length < 10) {
-          const firstErr = rows.find((r) => r.error);
+          const firstErr = results.find((r) => r.error);
           stats.rejectedDetail.push({
             id: pbId,
             postedAt: p.lastPostedAt,
@@ -98,6 +155,7 @@ function crossCheckApp(status, pbResultsMap) {
         }
       }
     }
+    // Any other case (posted, no results yet) is treated as processing.
   }
   return stats;
 }
@@ -200,37 +258,28 @@ function diagnose(s, xcheck) {
     if (severity === "healthy") { severity = "warn"; headline = "All automations off"; }
   }
 
-  // Post Bridge cross-check signals. These override softer reasons because
-  // they compare what the app claims against what Post Bridge actually
-  // delivered — the honest signal.
+  // Post Bridge cross-check signals. These compare what the app claims
+  // against what Post Bridge actually holds — the honest signal.
   if (xcheck) {
     if (xcheck.rejectedByPB24h > 0) {
       reasons.unshift(
-        `${xcheck.rejectedByPB24h} post${xcheck.rejectedByPB24h === 1 ? "" : "s"} rejected by Post Bridge in the last 24h despite the app logging success.`
+        `${xcheck.rejectedByPB24h} post${xcheck.rejectedByPB24h === 1 ? "" : "s"} rejected at delivery by Post Bridge in the last 24h.`
       );
       severity = "error";
       headline = "Post Bridge rejected posts";
     }
     if (xcheck.missingFromPB24h > 0) {
       reasons.unshift(
-        `${xcheck.missingFromPB24h} claim${xcheck.missingFromPB24h === 1 ? "" : "s"} in the last 24h have no matching record in Post Bridge (silent failure).`
+        `${xcheck.missingFromPB24h} claim${xcheck.missingFromPB24h === 1 ? "" : "s"} in the last 24h have no matching post in Post Bridge (real silent failure).`
       );
       if (severity !== "error") {
         severity = "error";
         headline = "Silent failure vs Post Bridge";
       }
     }
-    if (
-      xcheck.claimed24h > 0 &&
-      xcheck.confirmed24h === 0 &&
-      xcheck.rejectedByPB24h === 0 &&
-      xcheck.missingFromPB24h === 0
-    ) {
-      // App claimed posts in 24h and PB has some record for each, but none
-      // are confirmed successful yet. Likely still processing on the platform
-      // side. Neutral.
+    if (xcheck.queuedAtPB24h > 0) {
       reasons.push(
-        `${xcheck.claimed24h} claimed post${xcheck.claimed24h === 1 ? "" : "s"} still processing at Post Bridge.`
+        `${xcheck.queuedAtPB24h} post${xcheck.queuedAtPB24h === 1 ? "" : "s"} queued at Post Bridge, waiting for scheduled_at.`
       );
     }
   }
@@ -339,10 +388,14 @@ export default async function handler(req, res) {
   }
 
   let pbResultsMap = new Map();
+  let pbPostsMap = new Map();
   let pbCrossCheckError = null;
   if (wantedIds.size > 0 && process.env.POSTBRIDGE_API_KEY) {
     try {
-      pbResultsMap = await fetchPBResultsForPostIds(wantedIds);
+      [pbResultsMap, pbPostsMap] = await Promise.all([
+        fetchPBResultsForPostIds(wantedIds),
+        fetchPBRecentPosts(),
+      ]);
     } catch (e) {
       pbCrossCheckError = e.message;
     }
@@ -353,7 +406,7 @@ export default async function handler(req, res) {
   // Attach cross-check + diagnosis to each app now that we can reconcile.
   for (const a of apps) {
     if (a.reachable && a.status) {
-      a.crossCheck = crossCheckApp(a.status, pbResultsMap);
+      a.crossCheck = crossCheckApp(a.status, pbPostsMap, pbResultsMap);
       a.diagnosis = diagnose(a.status, a.crossCheck);
     }
   }
@@ -367,6 +420,7 @@ export default async function handler(req, res) {
     crossCheck: {
       postIdsChecked: wantedIds.size,
       postIdsMatchedInPB: pbResultsMap.size,
+      pbPostsIndexed: pbPostsMap.size,
       error: pbCrossCheckError,
     },
   });
