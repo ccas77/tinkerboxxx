@@ -376,38 +376,20 @@ export default async function handler(req, res) {
     ]),
   ]);
 
-  // Post Bridge cross-check. Gather every claimed post ID across every
-  // reachable app, batch-query Post Bridge in one go (throttled and retried
-  // by pbFetch), then compute per-app reconciliation.
-  const wantedIds = new Set();
-  for (const a of apps) {
-    if (!a.reachable || !a.status?.posts?.recent) continue;
-    for (const p of a.status.posts.recent) {
-      if (p.lastPostId) wantedIds.add(p.lastPostId);
-    }
-  }
-
-  let pbResultsMap = new Map();
-  let pbPostsMap = new Map();
-  let pbCrossCheckError = null;
-  if (wantedIds.size > 0 && process.env.POSTBRIDGE_API_KEY) {
-    try {
-      [pbResultsMap, pbPostsMap] = await Promise.all([
-        fetchPBResultsForPostIds(wantedIds),
-        fetchPBRecentPosts(),
-      ]);
-    } catch (e) {
-      pbCrossCheckError = e.message;
-    }
-  } else if (!process.env.POSTBRIDGE_API_KEY) {
-    pbCrossCheckError = "POSTBRIDGE_API_KEY not set on tinkerboxxx";
-  }
-
-  // Attach cross-check + diagnosis to each app now that we can reconcile.
+  // Each app now does its own Post Bridge cross-check server-side using its
+  // own PB key (some app keys are marked sensitive in Vercel and can't be
+  // exposed to the manager). The manager just surfaces status.crossCheck
+  // and derives the diagnosis from it.
+  let totalChecked = 0;
+  let totalConfirmed = 0;
   for (const a of apps) {
     if (a.reachable && a.status) {
-      a.crossCheck = crossCheckApp(a.status, pbPostsMap, pbResultsMap);
+      a.crossCheck = a.status.crossCheck || null;
       a.diagnosis = diagnose(a.status, a.crossCheck);
+      if (a.crossCheck) {
+        totalChecked += a.crossCheck.claimed24h || 0;
+        totalConfirmed += a.crossCheck.confirmed24h || 0;
+      }
     }
   }
 
@@ -418,10 +400,9 @@ export default async function handler(req, res) {
     generatedAt: new Date().toISOString(),
     apps, platforms, summary,
     crossCheck: {
-      postIdsChecked: wantedIds.size,
-      postIdsMatchedInPB: pbResultsMap.size,
-      pbPostsIndexed: pbPostsMap.size,
-      error: pbCrossCheckError,
+      postIdsChecked: totalChecked,
+      postIdsMatchedInPB: totalConfirmed,
+      mode: "per-app",
     },
   });
 }
