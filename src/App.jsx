@@ -1121,13 +1121,24 @@ const CONN_LABEL = {
 };
 function renderBadges(connections) {
   const out = [];
-  if (connections.kv) {
+  // Storage backends (kv / database) render first with reachable-based colour.
+  const storageKeys = ["kv", "database"];
+  for (const key of storageKeys) {
+    const val = connections[key];
+    if (!val || typeof val !== "object") continue;
     out.push(
-      <ConnBadge key="kv" label={CONN_LABEL.kv} ok={connections.kv.reachable} detail={connections.kv.error} />
+      <ConnBadge
+        key={key}
+        label={CONN_LABEL[key] || key}
+        ok={val.reachable !== false}
+        detail={val.error}
+      />
     );
   }
+  // All other connections are shown only when configured=true. Their presence
+  // means the app declares it uses this service.
   for (const [key, val] of Object.entries(connections)) {
-    if (key === "kv" || !val || typeof val !== "object") continue;
+    if (storageKeys.includes(key) || !val || typeof val !== "object") continue;
     if (!val.configured) continue;
     out.push(
       <ConnBadge

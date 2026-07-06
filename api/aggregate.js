@@ -206,11 +206,13 @@ function diagnose(s) {
   let severity = "healthy";
   let headline = "Healthy";
 
-  if (!s.connections.kv.reachable) {
+  // Storage backends: whichever the app declares (kv or database).
+  const storage = s.connections.kv || s.connections.database;
+  if (storage && storage.reachable === false) {
     return {
       severity: "error",
-      headline: "KV unreachable",
-      reasons: [s.connections.kv.error || "Upstash Redis returned an error."],
+      headline: "Storage unreachable",
+      reasons: [storage.error || "Storage backend returned an error."],
     };
   }
 
