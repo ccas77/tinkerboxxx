@@ -998,6 +998,33 @@ function ManagerAppCard({ a, expanded, onToggle }) {
                   Yesterday data: {s.yesterday.error}
                 </div>
               )}
+              {Array.isArray(s.yesterday.unconfirmed) && s.yesterday.unconfirmed.length > 0 && (
+                <div style={M.detailBox}>
+                  <div style={M.detailLabel}>Accounts with unconfirmed posts yesterday</div>
+                  <ul style={M.detailList}>
+                    {s.yesterday.unconfirmed.map((u, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        <strong>{u.target || "(unknown target)"}</strong>
+                        {u.postBridgeId ? <> · <code style={M.code}>{u.postBridgeId}</code></> : null}
+                        {u.error ? <> · <span style={{ color: "#b1281f" }}>{String(u.error).slice(0, 160)}</span></> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(s.yesterday.unattempted) && s.yesterday.unattempted.length > 0 && (
+                <div style={M.detailBox}>
+                  <div style={M.detailLabel}>Accounts with slots that never fired yesterday</div>
+                  <ul style={M.detailList}>
+                    {s.yesterday.unattempted.map((u, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        <strong>{u.target || "(unknown target)"}</strong>
+                        {u.slot ? <> · {u.slot}</> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
           ) : (
             <div style={{ ...M.reasonsBox, fontSize: 12, color: "#a1a1aa" }}>
