@@ -1121,8 +1121,8 @@ const CONN_LABEL = {
 };
 function renderBadges(connections) {
   const out = [];
-  // Storage backends (kv / database) render first with reachable-based colour.
-  const storageKeys = ["kv", "database"];
+  // Storage backends (kv / database / blob) render first with reachable-based colour.
+  const storageKeys = ["kv", "database", "blob"];
   for (const key of storageKeys) {
     const val = connections[key];
     if (!val || typeof val !== "object") continue;

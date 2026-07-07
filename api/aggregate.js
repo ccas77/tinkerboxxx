@@ -206,8 +206,8 @@ function diagnose(s) {
   let severity = "healthy";
   let headline = "Healthy";
 
-  // Storage backends: whichever the app declares (kv or database).
-  const storage = s.connections.kv || s.connections.database;
+  // Storage backends: whichever the app declares (kv / database / blob).
+  const storage = s.connections.kv || s.connections.database || s.connections.blob;
   if (storage && storage.reachable === false) {
     return {
       severity: "error",
