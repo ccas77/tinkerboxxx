@@ -947,9 +947,14 @@ function ManagerAppCard({ a, expanded, onToggle }) {
       <div style={{ ...M.cardStripe, background: chip.fg }} />
       <div style={M.cardHeader}>
         <div>
-          <div style={M.appName}>{a.name}</div>
+          <a href={a.url} target="_blank" rel="noopener noreferrer" style={M.appNameLink}>
+            {a.name}
+            <span style={M.linkArrow}> ↗</span>
+          </a>
           <div style={M.appSub}>
-            {a.url.replace(/^https?:\/\//, "")}
+            <a href={a.url} target="_blank" rel="noopener noreferrer" style={M.appSubLink}>
+              {a.url.replace(/^https?:\/\//, "")}
+            </a>
             {s?.app?.cron ? ` · ${s.app.cron}` : ""}
             {a.fetchMs ? ` · ${a.fetchMs}ms` : ""}
           </div>
@@ -1198,7 +1203,13 @@ const M = {
     marginBottom: 12, paddingLeft: 12, gap: 12,
   },
   appName: { fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#18181b" },
+  appNameLink: {
+    fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#18181b",
+    textDecoration: "none", display: "inline-flex", alignItems: "baseline", gap: 4,
+  },
+  linkArrow: { fontSize: 12, color: "#a1a1aa", fontWeight: 500 },
   appSub: { fontSize: 11, color: "#a1a1aa", marginTop: 3, fontFamily: "'IBM Plex Mono', monospace" },
+  appSubLink: { color: "#d97706", textDecoration: "none" },
   metricRow: {
     display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 10,
   },
