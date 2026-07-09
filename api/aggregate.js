@@ -160,7 +160,7 @@ function crossCheckApp(status, pbPostsMap, pbResultsMap) {
   return stats;
 }
 
-function loadRegistry() {
+export function loadRegistry() {
   const raw = process.env.APP_REGISTRY;
   if (!raw) return [];
   try {
@@ -179,7 +179,7 @@ function loadRegistry() {
   }
 }
 
-async function fetchWithTimeout(url, init, ms) {
+export async function fetchWithTimeout(url, init, ms) {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), ms);
   try {
