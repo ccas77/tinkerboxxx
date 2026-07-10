@@ -884,9 +884,9 @@ function Manager({ session }) {
             <span style={{ color: "#8a5a00" }}>{report.summary.warn} warn</span>{" · "}
             <span style={{ color: "#b1281f" }}>{report.summary.error} error</span>
           </div>
-          {report.crossCheck && (
+          {report.crossCheck && report.crossCheck.claimedPosts24h > 0 && (
             <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 3 }}>
-              Post Bridge cross-check: {report.crossCheck.postIdsMatchedInPB}/{report.crossCheck.postIdsChecked} claimed posts matched
+              Post Bridge cross-check (24h): {report.crossCheck.confirmedPosts24h}/{report.crossCheck.claimedPosts24h} claimed posts confirmed delivered
               {report.crossCheck.error ? ` · error: ${report.crossCheck.error}` : ""}
             </div>
           )}
@@ -1042,7 +1042,7 @@ function ManagerAppCard({ a, expanded, onToggle }) {
               </ul>
             </div>
           )}
-          {(s.counts.silentMissCount > 0 || s.counts.failingCount > 0 || (a.crossCheck && (a.crossCheck.rejectedByPB24h > 0 || a.crossCheck.missingFromPB24h > 0))) && (
+          {(s.counts?.silentMissCount > 0 || s.counts?.failingCount > 0 || (a.crossCheck && (a.crossCheck.rejectedByPB24h > 0 || a.crossCheck.missingFromPB24h > 0))) && (
             <button style={M.expandBtn} onClick={onToggle}>{expanded ? "Hide detail" : "Show detail"}</button>
           )}
           {expanded && (
@@ -1075,11 +1075,11 @@ function ManagerAppCard({ a, expanded, onToggle }) {
                   </ul>
                 </div>
               )}
-              {s.automations.filter(x => x.silentMiss).length > 0 && (
+              {(s.automations || []).filter(x => x.silentMiss).length > 0 && (
                 <div style={M.detailBox}>
                   <div style={M.detailLabel}>Silent misses</div>
                   <ul style={M.detailList}>
-                    {s.automations.filter(x => x.silentMiss).map(x => (
+                    {(s.automations || []).filter(x => x.silentMiss).map(x => (
                       <li key={x.id} style={{ marginBottom: 4 }}>
                         <strong>{x.name}</strong> · expected {x.expectedFireAt ? shortDate(x.expectedFireAt) : "?"} · last fired {x.lastFiredAt ? shortDate(x.lastFiredAt) : "never"}
                       </li>
@@ -1087,7 +1087,7 @@ function ManagerAppCard({ a, expanded, onToggle }) {
                   </ul>
                 </div>
               )}
-              {s.posts.failing.length > 0 && (
+              {(s.posts?.failing?.length || 0) > 0 && (
                 <div style={M.detailBox}>
                   <div style={M.detailLabel}>Failing posts</div>
                   <ul style={M.detailList}>
@@ -1153,6 +1153,7 @@ const CONN_LABEL = {
 };
 function renderBadges(connections) {
   const out = [];
+  if (!connections || typeof connections !== "object") return out;
   // Storage backends (kv / database / blob) render first with reachable-based colour.
   const storageKeys = ["kv", "database", "blob"];
   for (const key of storageKeys) {

@@ -1,5 +1,5 @@
 import { pbFetch, fetchAllAccounts } from "../analytics.js";
-import { loadRegistry, fetchWithTimeout } from "../aggregate.js";
+import { loadRegistry, fetchWithTimeout, classifyError } from "../aggregate.js";
 
 // Daily health alert. The old version summed Post Bridge *view deltas* per
 // account and emailed when the sum was 0. That signal was inverted: a fine
@@ -37,15 +37,6 @@ const CLASS_ACTION = {
   transient: "Usually self-heals; only worth a look if it keeps repeating.",
   other: "Investigate the platform error text.",
 };
-
-function classifyError(err) {
-  const e = String(err || "").toLowerCase();
-  if (!e) return "other";
-  if (/(refresh|access) token|token (is )?(invalid|expired)|invalid or expired|re-?auth|reconnect|unauthor|\b401\b/.test(e)) return "auth";
-  if (/permission|does not exist|cannot be loaded|not authorized|forbidden|\b403\b|disconnect/.test(e)) return "permission";
-  if (/took too long|timed out|time out|temporar|rate limit|try again|still complete|please check/.test(e)) return "transient";
-  return "other";
-}
 
 // Page /v1/posts newest-first into a Map keyed by id. Stops once a full page
 // is older than the scan horizon (2 days of margin around the 24h window).

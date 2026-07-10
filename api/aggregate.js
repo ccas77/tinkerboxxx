@@ -1,163 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
-import { pbFetch } from "./analytics.js";
 
 // Reads APP_REGISTRY (JSON array of { name, url, token }), fans out to each
-// app's /api/status, then cross-checks every claimed post against Post Bridge
-// directly. The delta between what an app claims and what Post Bridge confirms
-// is the actual signal.
+// app's /api/status, and derives a diagnosis. Each app cross-checks its own
+// claimed posts against Post Bridge server-side and returns the result in
+// status.crossCheck / status.yesterday; the manager surfaces and interprets it.
 
 const FETCH_TIMEOUT_MS = 10_000;
-const DAY_MS = 24 * 60 * 60 * 1000;
-const POSTBRIDGE_QUERY_CHUNK = 20; // multi-value post_id filter per request
 
-// Ask Post Bridge for delivery results of a specific set of post IDs. Chunks
-// the request so we don't blow the URL length limit, throttled + retried via
-// pbFetch. Returns a Map keyed by post_id → array of post_result rows.
-async function fetchPBResultsForPostIds(postIds) {
-  const map = new Map();
-  if (!postIds || postIds.size === 0) return map;
-  const arr = [...postIds];
-  const chunks = [];
-  for (let i = 0; i < arr.length; i += POSTBRIDGE_QUERY_CHUNK) {
-    chunks.push(arr.slice(i, i + POSTBRIDGE_QUERY_CHUNK));
-  }
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const qs = new URLSearchParams();
-      qs.set("limit", "100");
-      for (const id of chunk) qs.append("post_id", id);
-      let r;
-      try {
-        r = await pbFetch(`/v1/post-results?${qs}`);
-      } catch {
-        return;
-      }
-      for (const row of r.data || []) {
-        const pid = row.post_id;
-        if (!pid) continue;
-        if (!map.has(pid)) map.set(pid, []);
-        map.get(pid).push(row);
-      }
-    })
-  );
-  return map;
-}
-
-// Paginate /v1/posts newest-first to build a lookup of parent posts. A post
-// row includes its lifecycle status: scheduled → processing → posted. Without
-// this an app-claimed post that is legitimately queued for later today would
-// look identical to a genuinely lost post.
-async function fetchPBRecentPosts(maxPages = 10) {
-  const map = new Map();
-  let offset = 0;
-  const cutoff = Date.now() - 8 * DAY_MS;
-  for (let page = 0; page < maxPages; page++) {
-    let r;
-    try {
-      r = await pbFetch(`/v1/posts?limit=100&offset=${offset}`);
-    } catch {
-      break;
-    }
-    const rows = r.data || [];
-    for (const row of rows) {
-      if (row.id) map.set(row.id, row);
-    }
-    if (rows.length < 100) break;
-    // Stop early if the oldest post in the page is past the horizon we care
-    // about. Different apps may report differently-shaped created_at values.
-    const oldest = rows[rows.length - 1];
-    const oldestTs = oldest?.created_at ? Date.parse(oldest.created_at) : NaN;
-    if (Number.isFinite(oldestTs) && oldestTs < cutoff) break;
-    offset += 100;
-  }
-  return map;
-}
-
-function crossCheckApp(status, pbPostsMap, pbResultsMap) {
-  const now = Date.now();
-  const stats = {
-    claimed24h: 0,
-    claimed7d: 0,
-    confirmed24h: 0,
-    confirmed7d: 0,
-    queuedAtPB24h: 0,
-    rejectedByPB24h: 0,
-    missingFromPB24h: 0,
-    rejectedDetail: [],
-    missingDetail: [],
-    queuedDetail: [],
-  };
-  const claimed = status?.posts?.recent || [];
-  for (const p of claimed) {
-    if (!p.lastPostedAt) continue;
-    const t = Date.parse(p.lastPostedAt);
-    if (!Number.isFinite(t)) continue;
-    const in24h = t > now - DAY_MS;
-    const in7d = t > now - 7 * DAY_MS;
-    if (in24h) stats.claimed24h += 1;
-    if (in7d) stats.claimed7d += 1;
-
-    const pbId = p.lastPostId;
-    if (!pbId) continue;
-
-    const pbPost = pbPostsMap.get(pbId);
-    const results = pbResultsMap.get(pbId) || [];
-
-    if (!pbPost && results.length === 0) {
-      // Post Bridge has no record of this ID at all. This is the real
-      // silent-failure signal: the app claims it posted but PB never saw the
-      // request. Only counts if PB itself has recent posts (i.e., we know the
-      // pagination window covered this timeframe).
-      if (in24h) {
-        stats.missingFromPB24h += 1;
-        if (stats.missingDetail.length < 10) {
-          stats.missingDetail.push({ id: pbId, postedAt: p.lastPostedAt, target: p.originHandle || null });
-        }
-      }
-      continue;
-    }
-
-    const anySuccess = results.some((r) => r.success === true);
-    const anyFailure = results.some((r) => r.success === false);
-    const status_ = pbPost?.status;
-
-    if (anySuccess) {
-      if (in24h) stats.confirmed24h += 1;
-      if (in7d) stats.confirmed7d += 1;
-      continue;
-    }
-
-    if (results.length === 0 && (status_ === "scheduled" || status_ === "processing")) {
-      // Queued at PB, waiting for scheduled_at. This is fine, not a failure.
-      if (in24h) {
-        stats.queuedAtPB24h += 1;
-        if (stats.queuedDetail.length < 10) {
-          stats.queuedDetail.push({
-            id: pbId, postedAt: p.lastPostedAt, target: p.originHandle || null,
-            fireAt: pbPost?.scheduled_at || null,
-          });
-        }
-      }
-      continue;
-    }
-
-    if (anyFailure) {
-      if (in24h) {
-        stats.rejectedByPB24h += 1;
-        if (stats.rejectedDetail.length < 10) {
-          const firstErr = results.find((r) => r.error);
-          stats.rejectedDetail.push({
-            id: pbId,
-            postedAt: p.lastPostedAt,
-            target: p.originHandle || null,
-            error: firstErr?.error ? JSON.stringify(firstErr.error).slice(0, 200) : "unknown",
-          });
-        }
-      }
-    }
-    // Any other case (posted, no results yet) is treated as processing.
-  }
-  return stats;
+// Classify a platform error string into an actionable bucket. Shared with the
+// daily alert cron (api/cron/dead-account-check.js imports this).
+export function classifyError(err) {
+  const e = String(err || "").toLowerCase();
+  if (!e) return "other";
+  if (/(refresh|access) token|token (is )?(invalid|expired)|invalid or expired|re-?auth|reconnect|unauthor|\b401\b/.test(e)) return "auth";
+  if (/permission|does not exist|cannot be loaded|not authorized|forbidden|\b403\b|disconnect/.test(e)) return "permission";
+  if (/took too long|timed out|time out|temporar|rate limit|try again|still complete|could not download|please check/.test(e)) return "transient";
+  return "other";
 }
 
 export function loadRegistry() {
@@ -189,16 +47,16 @@ export async function fetchWithTimeout(url, init, ms) {
   }
 }
 
-function humanAgo(iso) {
-  if (!iso) return "never";
-  const delta = Date.now() - Date.parse(iso);
-  const m = Math.floor(delta / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 48) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
+// Tally the error classes present in an app's unconfirmed-posts list. A
+// missing error string means "attempted, not yet confirmed" (pending), which
+// is softer than an explicit failure.
+function summarizeFailureClasses(unconfirmed) {
+  const classes = { auth: 0, permission: 0, transient: 0, other: 0, pending: 0 };
+  for (const u of Array.isArray(unconfirmed) ? unconfirmed : []) {
+    if (!u || !u.error) { classes.pending += 1; continue; }
+    classes[classifyError(u.error)] += 1;
+  }
+  return classes;
 }
 
 function diagnose(s) {
@@ -207,7 +65,8 @@ function diagnose(s) {
   let headline = "Healthy";
 
   // Storage backends: whichever the app declares (kv / database / blob).
-  const storage = s.connections.kv || s.connections.database || s.connections.blob;
+  const conns = s.connections || {};
+  const storage = conns.kv || conns.database || conns.blob;
   if (storage && storage.reachable === false) {
     return {
       severity: "error",
@@ -224,35 +83,66 @@ function diagnose(s) {
       severity = "warn";
       headline = "Yesterday data missing";
     }
-    if (y.planned === null || y.planned === undefined) {
-      reasons.push("Planned count is not tracked by this app for past days (the schedule log expires overnight).");
-    } else if (y.attemptGap > 0) {
+
+    // A scheduled slot that never even attempted a post is a real cron miss.
+    if (y.attemptGap > 0) {
       reasons.push(`${y.attemptGap} scheduled slot${y.attemptGap === 1 ? "" : "s"} yesterday did not attempt a post. The cron did not fire, or the run was skipped.`);
       severity = "error";
       headline = "Cron missed slots";
+    } else if (y.planned === null || y.planned === undefined) {
+      reasons.push("Planned count is not tracked by this app for past days (the schedule log expires overnight).");
     }
+
+    // Attempted-but-unconfirmed: severity depends on WHY it is unconfirmed.
+    // Auth/permission/other are real failures (error). Transient uploads and
+    // still-pending confirmations self-heal, so they only warrant a warning.
     if (y.confirmGap > 0) {
-      reasons.push(`${y.confirmGap} attempted post${y.confirmGap === 1 ? "" : "s"} yesterday have no confirmed delivery in Post Bridge. Silent failure between the app and Post Bridge.`);
-      if (severity !== "error") severity = "error";
-      headline = severity === "error" ? headline : "Silent failure vs Post Bridge";
-      if (headline === "Cron missed slots" && y.confirmGap > 0) {
-        headline = "Cron misses + silent failures";
-      } else if (!headline || headline === "Healthy") {
-        headline = "Silent failure vs Post Bridge";
+      const c = summarizeFailureClasses(y.unconfirmed);
+      const hard = c.auth + c.permission + c.other;
+      const soft = c.transient + c.pending;
+
+      if (hard > 0) {
+        severity = "error";
+        const parts = [];
+        if (c.auth) parts.push(`${c.auth} auth-expired`);
+        if (c.permission) parts.push(`${c.permission} permission`);
+        if (c.other) parts.push(`${c.other} other`);
+        const actions = [];
+        if (c.auth) actions.push("Reconnect the account(s) in Post Bridge.");
+        if (c.permission) actions.push("Fix the platform permissions / page access.");
+        reasons.push(`${hard} post${hard === 1 ? "" : "s"} failed to deliver (${parts.join(", ")}). ${actions.join(" ")}`.trim());
+        const primary = c.auth >= c.permission && c.auth >= c.other ? "Auth expired"
+          : c.permission >= c.other ? "Permission errors"
+          : "Delivery failures";
+        headline = headline === "Cron missed slots" ? "Cron misses + delivery failures" : primary;
+      } else if (soft > 0) {
+        const bits = [];
+        if (c.transient) bits.push(`${c.transient} transient upload issue${c.transient === 1 ? "" : "s"}`);
+        if (c.pending) bits.push(`${c.pending} still awaiting confirmation`);
+        reasons.push(`${y.confirmGap} post${y.confirmGap === 1 ? "" : "s"} not confirmed delivered (${bits.join(", ")}). Usually self-heals.`);
+        if (severity !== "error") {
+          severity = "warn";
+          if (headline === "Healthy") headline = "Transient delivery issues";
+        }
+      } else {
+        reasons.push(`${y.confirmGap} attempted post${y.confirmGap === 1 ? "" : "s"} yesterday have no confirmed delivery in Post Bridge.`);
+        if (severity !== "error") {
+          severity = "warn";
+          if (headline === "Healthy") headline = "Unconfirmed deliveries";
+        }
       }
     }
+
     if (y.planned === 0 && y.attempted === 0) {
       reasons.push("Nothing was planned or attempted yesterday.");
       if (severity === "healthy") { severity = "warn"; headline = "Idle yesterday"; }
     }
     return { severity, headline, reasons };
   }
-  // Only warn about Post Bridge when the app actually uses it AND has a real
-  // recent failure. Absence of a token means "app doesn't use it", not "broken".
+
   // Fallback for apps whose /api/status doesn't yet include a yesterday block.
-  // Only surface honest signals: KV reachability above, and PB configuration.
-  // Everything else is deferred to the yesterday-aware code path.
-  if (s.counts && s.counts.automationsTotal > 0 && s.counts.automationsEnabled === 0) {
+  const counts = s.counts || {};
+  if (counts.automationsTotal > 0 && counts.automationsEnabled === 0) {
     reasons.push("All automations on this app are disabled.");
     if (severity === "healthy") { severity = "warn"; headline = "All automations off"; }
   }
@@ -291,9 +181,8 @@ async function fetchOneApp(entry) {
     return {
       name: entry.name, url: entry.url, fetchedAt: new Date().toISOString(),
       reachable: true, httpStatus: 200, fetchMs, status,
-      // Cross-check + diagnosis are attached later in aggregateAll() once we
-      // have all apps and can batch-query Post Bridge for their combined
-      // claimed post IDs.
+      // Cross-check + diagnosis are attached later in the handler once we have
+      // all apps.
     };
   } catch (e) {
     const timedOut = e.name === "AbortError";
@@ -350,10 +239,10 @@ export default async function handler(req, res) {
     ]),
   ]);
 
-  // Each app now does its own Post Bridge cross-check server-side using its
-  // own PB key (some app keys are marked sensitive in Vercel and can't be
-  // exposed to the manager). The manager just surfaces status.crossCheck
-  // and derives the diagnosis from it.
+  // Each app does its own Post Bridge cross-check server-side using its own PB
+  // key (some app keys are marked sensitive in Vercel and can't be exposed to
+  // the manager). The manager surfaces status.crossCheck and derives the
+  // diagnosis from status.yesterday.
   let totalChecked = 0;
   let totalConfirmed = 0;
   for (const a of apps) {
@@ -374,8 +263,8 @@ export default async function handler(req, res) {
     generatedAt: new Date().toISOString(),
     apps, platforms, summary,
     crossCheck: {
-      postIdsChecked: totalChecked,
-      postIdsMatchedInPB: totalConfirmed,
+      claimedPosts24h: totalChecked,
+      confirmedPosts24h: totalConfirmed,
       mode: "per-app",
     },
   });
