@@ -216,7 +216,7 @@ async function probe(name, url, timeoutMs = 6000) {
   }
 }
 
-async function authUser(req) {
+export async function authUser(req) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
   if (!token) return { error: "Missing auth token", status: 401 };
   const supabaseUrl = process.env.VITE_SUPABASE_URL;

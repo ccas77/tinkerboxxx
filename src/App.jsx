@@ -837,6 +837,66 @@ function PromptTool({ session }) {
   );
 }
 
+// Human-readable copy for the account-failure classes coming out of
+// /api/diagnostic. Account issues are user-fixable by definition.
+const ACCOUNT_CLASS_COPY = {
+  auth: { label: "Auth expired", action: "Reconnect this account in Post Bridge." },
+  permission: { label: "Permission / page error", action: "Fix the page permissions or access." },
+  other: { label: "Delivery failures", action: "Check the error and the account." },
+};
+
+function AccountAttentionBanner({ session }) {
+  const [findings, setFindings] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const res = await fetch("/api/diagnostic", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!alive) return;
+        setFindings((j.findings || []).filter(f => f.kind === "account-failure"));
+      } catch {}
+    }
+    load();
+    const t = setInterval(load, 10 * 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  if (!findings || findings.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "#fdeceb", border: "1px solid #f3b8b1", borderRadius: 12,
+      padding: "12px 16px", marginBottom: 16,
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: "#b1281f", marginBottom: 8 }}>
+        {findings.length} account{findings.length === 1 ? "" : "s"} need{findings.length === 1 ? "s" : ""} your attention
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#7f1d1d" }}>
+        {findings.map((f, i) => {
+          const copy = ACCOUNT_CLASS_COPY[f.class] || ACCOUNT_CLASS_COPY.other;
+          return (
+            <li key={i} style={{ marginBottom: 6 }}>
+              <strong>@{f.username}</strong> ({f.platform}) · {copy.label} ·{" "}
+              {f.failed}/{f.total} post{f.total === 1 ? "" : "s"} failed in the last 24h.{" "}
+              <span style={{ fontWeight: 600 }}>{copy.action}</span>
+              {f.sampleError && (
+                <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
+                  {String(f.sampleError).slice(0, 160)}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function Manager({ session }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -875,6 +935,7 @@ function Manager({ session }) {
 
   return (
     <div style={S.fadeIn}>
+      <AccountAttentionBanner session={session} />
       <div style={M.header}>
         <div style={M.summary}>
           <div>

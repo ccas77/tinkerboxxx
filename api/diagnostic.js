@@ -1,4 +1,4 @@
-import { loadRegistry } from "./aggregate.js";
+import { loadRegistry, authUser } from "./aggregate.js";
 import { scanPostBridgeFailures, scanAppGaps } from "./cron/dead-account-check.js";
 
 // Machine-readable diagnostic feed for automated investigators (e.g. a
@@ -8,15 +8,21 @@ import { scanPostBridgeFailures, scanAppGaps } from "./cron/dead-account-check.j
 // "book-video-bot missed 4 slots" straight to the right repo.
 //
 // Auth: Bearer DIAGNOSTIC_TOKEN (a read-only token; safe to hand to an
-// external investigator) or CRON_SECRET. Never returns registry tokens.
+// external investigator), CRON_SECRET, or a logged-in dashboard user's
+// Supabase token (so the Manager tab can render the same findings).
+// Never returns registry tokens.
 
 export default async function handler(req, res) {
   const provided = req.headers.authorization?.replace(/^Bearer\s+/i, "");
   const diagToken = process.env.DIAGNOSTIC_TOKEN;
   const cronSecret = process.env.CRON_SECRET;
-  const authorized =
+  let authorized =
     (diagToken && provided === diagToken) ||
     (cronSecret && provided === cronSecret);
+  if (!authorized && provided) {
+    const auth = await authUser(req);
+    authorized = !auth.error;
+  }
   if (!authorized) {
     return res.status(401).json({ error: "Unauthorized" });
   }
