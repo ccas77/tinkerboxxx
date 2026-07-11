@@ -99,7 +99,7 @@ async function fetchResultsForPostIds(postIds) {
   return byPost;
 }
 
-async function scanPostBridgeFailures() {
+export async function scanPostBridgeFailures() {
   const posts = await fetchRecentPosts();
   const windowIds = new Set(
     [...posts.values()].filter(actedInLast24h).map(p => p.id)
@@ -167,7 +167,7 @@ async function scanPostBridgeFailures() {
   };
 }
 
-async function scanAppGaps() {
+export async function scanAppGaps() {
   const registry = loadRegistry();
   const results = await Promise.all(registry.map(async (app) => {
     try {

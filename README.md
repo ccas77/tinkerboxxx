@@ -33,6 +33,12 @@ It does **not** use view counts to judge health. The previous version summed Pos
 
 Add `?dry=1` to the URL to run the full scan and get the JSON report (including an `email.preview` of the text that would be sent) without actually emailing.
 
+## Diagnostic feed (for automated investigators)
+
+`GET /api/diagnostic` returns the same two scans as machine-readable findings, plus a token-free copy of the registry with each app's `repo` / `dir` so a consumer (e.g. a scheduled Claude Code routine) can go from a finding straight to the right codebase. Shape: `{ generatedAt, healthy, findings: [{ kind: "account-failure" | "app-gap" | "app-unreachable", fixable: "user" | "investigate", ... }], registry, raw }`.
+
+Auth: `Authorization: Bearer <DIAGNOSTIC_TOKEN>` (a read-only token, safe to give to an external investigator) or `CRON_SECRET`. Set `DIAGNOSTIC_TOKEN` on the project; entries in `APP_REGISTRY` may carry optional `repo` (GitHub URL) and `dir` (subdirectory) fields.
+
 ### Env vars
 
 | Var | Required | What it does |

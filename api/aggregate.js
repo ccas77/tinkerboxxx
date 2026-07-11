@@ -30,6 +30,10 @@ export function loadRegistry() {
         name: String(e.name || ""),
         url: String(e.url || "").replace(/\/$/, ""),
         token: String(e.token || ""),
+        // Optional: GitHub repo (and subdirectory) holding this app's code, so
+        // diagnostic consumers know where to investigate.
+        repo: e.repo ? String(e.repo) : null,
+        dir: e.dir ? String(e.dir) : null,
       }))
       .filter(e => e.name && e.url && e.token);
   } catch {
