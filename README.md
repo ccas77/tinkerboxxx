@@ -58,3 +58,15 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 ```
 
 Response shape: `{ ok, generatedAt, postBridge: { postsScanned, hardFailureCount, hardFailures: [...], transientOnlyCount }, apps: { checked, gapCount, gaps: [...], unreachable: [...] }, email: { sent, reason? } }`. An email is sent only when there is at least one hard Post Bridge failure, an app schedule gap, or an unreachable app. Drop `?dry=1` to let it actually send.
+
+## Keeping Vercel compute charges down
+
+The Manager tab is the only expensive part of this project, and the cost is driven by *how often it polls*, not by how much traffic the site gets. Each `/api/aggregate` call fans out to every app in `APP_REGISTRY` and waits on the slowest one (up to 10s); each `/api/diagnostic` call runs the entire daily-alert scan — paging Post Bridge, then re-polling every app. Both are seconds of function time, and every registered app's own `/api/status` is itself a serverless invocation on *its* project, so one poll here bills compute across several projects at once.
+
+Three things keep that bounded:
+
+- **Polling pauses when the tab is hidden.** A Manager tab left open in a background window costs nothing until you look at it again, at which point it refreshes if the data went stale.
+- **Long intervals, instant manual refresh.** `/api/aggregate` auto-refreshes every 5 minutes and `/api/diagnostic` every 30 minutes (`MANAGER_POLL_MS` / `BANNER_POLL_MS` in `src/App.jsx`). The Refresh button is always there when you want the current state now.
+- **Warm-instance caching with single-flight.** Both routes memoize their last scan (60s for `/api/aggregate`, 5 min for `/api/diagnostic`) and collapse concurrent requests into one run, so extra tabs, extra devices, and external investigators share a scan instead of each paying for their own. The results depend only on env config and upstream state, never on who is asking, so one shared entry is safe. `?fresh=1` bypasses it — the Refresh button sends it, and the daily cron always scans fresh.
+
+If the bill still looks high, the poll intervals are the knob to turn first.

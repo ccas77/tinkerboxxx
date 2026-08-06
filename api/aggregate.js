@@ -6,6 +6,37 @@ import { createClient } from "@supabase/supabase-js";
 // status.crossCheck / status.yesterday; the manager surfaces and interprets it.
 
 const FETCH_TIMEOUT_MS = 10_000;
+const CACHE_TTL_MS = 60_000;
+
+// Warm-instance memo + single-flight for the expensive fan-out endpoints. One
+// call reaches out to every registered app (and, for /api/diagnostic, pages
+// Post Bridge), so without this each poll, each extra open tab, and each
+// double-click on Refresh bills another full scan. The payload depends only on
+// env config and upstream state, never on who is asking, so one shared entry
+// is correct. Cold starts simply miss and re-scan.
+export function memoize(fn, ttlMs) {
+  let entry = null;    // { at, value }
+  let inflight = null;
+  return async function run({ fresh = false } = {}) {
+    if (!fresh && entry && Date.now() - entry.at < ttlMs) return entry.value;
+    // A scan already running is as fresh as one started now — join it.
+    if (inflight) return inflight;
+    inflight = (async () => {
+      try {
+        const value = await fn();
+        entry = { at: Date.now(), value };
+        return value;
+      } finally {
+        inflight = null;
+      }
+    })();
+    return inflight;
+  };
+}
+
+export function wantsFresh(req) {
+  return req.query?.fresh === "1" || req.query?.fresh === "true";
+}
 
 // Classify a platform error string into an actionable bucket. Shared with the
 // daily alert cron (api/cron/dead-account-check.js imports this).
@@ -230,10 +261,7 @@ export async function authUser(req) {
   return { user: data.user };
 }
 
-export default async function handler(req, res) {
-  const auth = await authUser(req);
-  if (auth.error) return res.status(auth.status).json({ error: auth.error });
-
+const buildReport = memoize(async () => {
   const registry = loadRegistry();
   const [apps, platforms] = await Promise.all([
     Promise.all(registry.map(fetchOneApp)),
@@ -263,7 +291,7 @@ export default async function handler(req, res) {
   const summary = { total: apps.length, healthy: 0, warn: 0, error: 0 };
   for (const a of apps) summary[a.diagnosis.severity] += 1;
 
-  return res.status(200).json({
+  return {
     generatedAt: new Date().toISOString(),
     apps, platforms, summary,
     crossCheck: {
@@ -271,5 +299,15 @@ export default async function handler(req, res) {
       confirmedPosts24h: totalConfirmed,
       mode: "per-app",
     },
-  });
+  };
+}, CACHE_TTL_MS);
+
+export default async function handler(req, res) {
+  const auth = await authUser(req);
+  if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+  const report = await buildReport({ fresh: wantsFresh(req) });
+  // Private data behind a bearer token — never let a shared cache hold it.
+  res.setHeader("Cache-Control", "private, no-store");
+  return res.status(200).json(report);
 }
