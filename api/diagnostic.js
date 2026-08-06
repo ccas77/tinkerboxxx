@@ -1,5 +1,12 @@
-import { loadRegistry, authUser } from "./aggregate.js";
+import { loadRegistry, authUser, memoize, wantsFresh } from "./aggregate.js";
 import { scanPostBridgeFailures, scanAppGaps } from "./cron/dead-account-check.js";
+
+// This route runs the whole daily-alert scan (paged Post Bridge reads plus a
+// fan-out to every registered app), which is the single most expensive thing
+// this project does. A warm instance reuses the last scan for five minutes so
+// the dashboard banner and any external investigators share one run instead of
+// each billing their own. `?fresh=1` forces a new scan.
+const CACHE_TTL_MS = 5 * 60_000;
 
 // Machine-readable diagnostic feed for automated investigators (e.g. a
 // scheduled Claude Code routine). Returns the same two signals as the daily
@@ -11,6 +18,59 @@ import { scanPostBridgeFailures, scanAppGaps } from "./cron/dead-account-check.j
 // external investigator), CRON_SECRET, or a logged-in dashboard user's
 // Supabase token (so the Manager tab can render the same findings).
 // Never returns registry tokens.
+
+const buildFeed = memoize(async () => {
+  const [pb, apps] = await Promise.all([scanPostBridgeFailures(), scanAppGaps()]);
+
+  // Registry metadata WITHOUT tokens: names, live URLs, code locations.
+  const registry = loadRegistry().map(({ name, url, repo, dir }) => ({
+    name, url, repo, dir,
+  }));
+
+  const findings = [];
+  for (const a of pb.hardFailures) {
+    findings.push({
+      kind: "account-failure",
+      fixable: a.worstClass === "auth" || a.worstClass === "permission" ? "user" : "investigate",
+      platform: a.platform,
+      username: a.username,
+      class: a.worstClass,
+      failed: a.failed,
+      total: a.total,
+      sampleError: a.sampleError,
+    });
+  }
+  for (const g of apps.gaps) {
+    findings.push({
+      kind: "app-gap",
+      fixable: "investigate",
+      app: g.app,
+      repo: registry.find(r => r.name === g.app)?.repo || null,
+      date: g.date,
+      attemptGap: g.attemptGap,
+      confirmGap: g.confirmGap,
+      unattempted: g.unattempted,
+      unconfirmed: g.unconfirmed,
+    });
+  }
+  for (const u of apps.unreachable) {
+    findings.push({
+      kind: "app-unreachable",
+      fixable: "investigate",
+      app: u.app,
+      repo: registry.find(r => r.name === u.app)?.repo || null,
+      detail: u.unreachable,
+    });
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    healthy: findings.length === 0,
+    findings,
+    registry,
+    raw: { postBridge: pb, apps },
+  };
+}, CACHE_TTL_MS);
 
 export default async function handler(req, res) {
   const provided = req.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -31,56 +91,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [pb, apps] = await Promise.all([scanPostBridgeFailures(), scanAppGaps()]);
-
-    // Registry metadata WITHOUT tokens: names, live URLs, code locations.
-    const registry = loadRegistry().map(({ name, url, repo, dir }) => ({
-      name, url, repo, dir,
-    }));
-
-    const findings = [];
-    for (const a of pb.hardFailures) {
-      findings.push({
-        kind: "account-failure",
-        fixable: a.worstClass === "auth" || a.worstClass === "permission" ? "user" : "investigate",
-        platform: a.platform,
-        username: a.username,
-        class: a.worstClass,
-        failed: a.failed,
-        total: a.total,
-        sampleError: a.sampleError,
-      });
-    }
-    for (const g of apps.gaps) {
-      findings.push({
-        kind: "app-gap",
-        fixable: "investigate",
-        app: g.app,
-        repo: registry.find(r => r.name === g.app)?.repo || null,
-        date: g.date,
-        attemptGap: g.attemptGap,
-        confirmGap: g.confirmGap,
-        unattempted: g.unattempted,
-        unconfirmed: g.unconfirmed,
-      });
-    }
-    for (const u of apps.unreachable) {
-      findings.push({
-        kind: "app-unreachable",
-        fixable: "investigate",
-        app: u.app,
-        repo: registry.find(r => r.name === u.app)?.repo || null,
-        detail: u.unreachable,
-      });
-    }
-
-    return res.status(200).json({
-      generatedAt: new Date().toISOString(),
-      healthy: findings.length === 0,
-      findings,
-      registry,
-      raw: { postBridge: pb, apps },
-    });
+    const feed = await buildFeed({ fresh: wantsFresh(req) });
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.status(200).json(feed);
   } catch (e) {
     return res.status(502).json({ error: e.message });
   }

@@ -837,6 +837,39 @@ function PromptTool({ session }) {
   );
 }
 
+// How often the Manager auto-refreshes. Every tick is a serverless invocation
+// that fans out to each registered app, so this is a billing knob, not just a
+// freshness one — the Refresh button covers "I want it now".
+const MANAGER_POLL_MS = 5 * 60_000;
+// The banner's /api/diagnostic call runs the full daily-alert scan (pages Post
+// Bridge, then re-polls every app), so it gets a much longer leash.
+const BANNER_POLL_MS = 30 * 60_000;
+
+// Auto-refresh that only fires while the tab is actually visible, and catches
+// up on return if the data went stale while hidden. Without the visibility
+// gate a tab left open in the background bills compute all day for a view
+// nobody is looking at.
+function useVisiblePolling(load, intervalMs) {
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    let lastRun = 0;
+    const run = () => { lastRun = Date.now(); loadRef.current(); };
+
+    run();
+    const timer = setInterval(() => { if (!document.hidden) run(); }, intervalMs);
+    const onVisibility = () => {
+      if (!document.hidden && Date.now() - lastRun >= intervalMs) run();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [intervalMs]);
+}
+
 // Human-readable copy for the account-failure classes coming out of
 // /api/diagnostic. Account issues are user-fixable by definition.
 const ACCOUNT_CLASS_COPY = {
@@ -847,24 +880,26 @@ const ACCOUNT_CLASS_COPY = {
 
 function AccountAttentionBanner({ session }) {
   const [findings, setFindings] = useState(null);
-
+  // Declared before the polling effect so it is set before the first load runs.
+  const alive = useRef(true);
   useEffect(() => {
-    let alive = true;
-    async function load() {
-      try {
-        const res = await fetch("/api/diagnostic", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) return;
-        const j = await res.json();
-        if (!alive) return;
-        setFindings((j.findings || []).filter(f => f.kind === "account-failure"));
-      } catch {}
-    }
-    load();
-    const t = setInterval(load, 10 * 60_000);
-    return () => { alive = false; clearInterval(t); };
+    alive.current = true;
+    return () => { alive.current = false; };
   }, []);
+
+  async function load() {
+    try {
+      const res = await fetch("/api/diagnostic", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      if (!alive.current) return;
+      setFindings((j.findings || []).filter(f => f.kind === "account-failure"));
+    } catch {}
+  }
+
+  useVisiblePolling(load, BANNER_POLL_MS);
 
   if (!findings || findings.length === 0) return null;
 
@@ -903,10 +938,12 @@ function Manager({ session }) {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState({});
 
-  async function load() {
+  // `fresh` bypasses the server's warm-instance cache. Only the Refresh button
+  // asks for it — background polls are happy with a cached scan.
+  async function load(fresh = false) {
     setLoading(true); setError("");
     try {
-      const res = await fetch("/api/aggregate", {
+      const res = await fetch(`/api/aggregate${fresh ? "?fresh=1" : ""}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const j = await res.json();
@@ -919,11 +956,7 @@ function Manager({ session }) {
     }
   }
 
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
-  }, []);
+  useVisiblePolling(load, MANAGER_POLL_MS);
 
   function toggle(name) {
     setExpanded(prev => ({ ...prev, [name]: !prev[name] }));
@@ -952,7 +985,7 @@ function Manager({ session }) {
             </div>
           )}
         </div>
-        <button style={M.refreshBtn} onClick={load} disabled={loading}>
+        <button style={M.refreshBtn} onClick={() => load(true)} disabled={loading}>
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
