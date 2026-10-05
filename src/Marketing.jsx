@@ -79,6 +79,14 @@ const CSS = `
 .st-foot-col a { display: block; font-size: 14px; color: var(--muted); text-decoration: none; margin-bottom: 8px; }
 .st-foot-col a:hover { color: var(--ink); }
 .st-foot-col a.st-logo { display: inline-flex; color: var(--ink); font-size: 18px; }
+.st-legal { max-width: 760px; padding: 20px 0 24px; }
+.st-legal h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 40px 0 10px; }
+.st-legal p, .st-legal li { font-size: 16px; line-height: 1.7; color: var(--ink-soft); }
+.st-legal p { margin: 0 0 14px; }
+.st-legal ul { margin: 0 0 14px; padding-left: 22px; }
+.st-legal li { margin-bottom: 6px; }
+.st-legal a { color: var(--accent); }
+.st-updated { font-size: 14px; color: var(--muted); margin-top: 8px; }
 .st-copy { width: 100%; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
 
 @media (max-width: 640px) {
@@ -146,6 +154,11 @@ function Footer() {
           <Link to="/about">About</Link>
           <Link to="/careers">Careers</Link>
           <Link to="/contact">Contact</Link>
+        </div>
+        <div className="st-foot-col">
+          <h4>Legal</h4>
+          <Link to="/privacy">Privacy Policy</Link>
+          <Link to="/terms">Terms of Use</Link>
         </div>
         <div className="st-copy">© {new Date().getFullYear()} Tinkerboxxx. All rights reserved.</div>
       </div>
@@ -311,6 +324,172 @@ export function Contact() {
         ))}
       </section>
     </Layout>
+  );
+}
+
+const LEGAL_UPDATED = "5 October 2026";
+const EMAIL = "hello@tinkerboxxx.com";
+
+function LegalPage({ eyebrow, title, children }) {
+  return (
+    <Layout>
+      <section className="st-page" style={{ paddingBottom: 8 }}>
+        <div className="st-eyebrow">{eyebrow}</div>
+        <h1 className="st-h1">{title}</h1>
+        <div className="st-updated">Last updated: {LEGAL_UPDATED}</div>
+      </section>
+      <article className="st-legal">{children}</article>
+    </Layout>
+  );
+}
+
+export function Privacy() {
+  return (
+    <LegalPage eyebrow="Legal" title="Privacy Policy">
+      <p>
+        This Privacy Policy explains how Tinkerboxxx ("we", "us") handles information when you visit
+        tinkerboxxx.com or use our apps (Tally, Jotpad, QR Studio and Palette). The short version: our apps
+        run in your browser, we don't ask you to create an account, and we don't collect the content you put
+        into them.
+      </p>
+
+      <h2>Information you enter in our apps</h2>
+      <p>
+        Habits, notes, QR code text, colours and saved palettes are stored only in your browser's local
+        storage on your own device. This data is not sent to our servers and we cannot see it. If you clear
+        your browser data, use a private window or switch devices, that data will not be available.
+      </p>
+
+      <h2>Information collected automatically</h2>
+      <p>
+        Our website is hosted by Vercel. Like most web hosts, Vercel processes standard technical information
+        when your browser requests a page, such as your IP address, browser type, the page requested and the
+        time of the request. This is used to deliver the site, keep it secure and diagnose problems. We do not
+        use it to identify you or build a profile of you.
+      </p>
+      <p>
+        Our pages load fonts from Google Fonts, so your browser connects to Google's servers to fetch them.
+        Google's handling of that request is covered by Google's own privacy policy.
+      </p>
+
+      <h2>Cookies and tracking</h2>
+      <p>
+        We do not use advertising cookies, analytics trackers or third-party marketing tools. Local storage is
+        used only to save your app data on your device, as described above.
+      </p>
+
+      <h2>Information you send us</h2>
+      <p>
+        If you email us, we receive your email address and whatever you include in your message. We use it
+        only to reply to you and keep a record of the conversation, and we do not sell or share it with third
+        parties for marketing.
+      </p>
+
+      <h2>How we share information</h2>
+      <p>
+        We do not sell personal information. We share it only with service providers that help us run the
+        site (such as our hosting provider), when required by law, or to protect our rights and the safety of
+        our users.
+      </p>
+
+      <h2>Data retention</h2>
+      <p>
+        App data stays on your device until you delete it. Emails are kept for as long as needed to respond
+        and for reasonable record-keeping. Hosting logs are retained by our provider for a limited period.
+      </p>
+
+      <h2>Your rights</h2>
+      <p>
+        Depending on where you live, you may have the right to access, correct or delete personal information
+        we hold about you, or to object to its use. To make a request, email us at{" "}
+        <a href={`mailto:${EMAIL}`}>{EMAIL}</a>. You can delete app data at any time from within each app or
+        by clearing your browser's site data.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        Our apps are not directed at children under 13, and we do not knowingly collect personal information
+        from them.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        We may update this policy from time to time. When we do, we'll change the "Last updated" date at the
+        top of this page.
+      </p>
+
+      <h2>Contact</h2>
+      <p>Questions about this policy can be sent to <a href={`mailto:${EMAIL}`}>{EMAIL}</a>.</p>
+    </LegalPage>
+  );
+}
+
+export function Terms() {
+  return (
+    <LegalPage eyebrow="Legal" title="Terms of Use">
+      <p>
+        These Terms of Use govern your use of tinkerboxxx.com and the apps we provide on it (the
+        "Services"). By using the Services you agree to these terms. If you don't agree, please don't use the
+        Services.
+      </p>
+
+      <h2>Using our apps</h2>
+      <p>
+        Our apps are free to use and don't require an account. You may use them for personal or commercial
+        purposes, provided you follow these terms and applicable law.
+      </p>
+
+      <h2>Your content</h2>
+      <p>
+        You own everything you create or enter in our apps, including notes, habits, QR codes and colour
+        palettes. Because this content is stored only on your device, you are responsible for keeping your own
+        copies. We are not able to recover lost data.
+      </p>
+
+      <h2>Acceptable use</h2>
+      <p>You agree not to:</p>
+      <ul>
+        <li>use the Services for anything unlawful, fraudulent or harmful;</li>
+        <li>create QR codes that link to malware, phishing or other deceptive content;</li>
+        <li>attempt to disrupt, overload or gain unauthorised access to the Services or our systems;</li>
+        <li>copy, resell or redistribute the Services themselves without our permission.</li>
+      </ul>
+
+      <h2>Our intellectual property</h2>
+      <p>
+        The Services, including their design, code, text and logos, belong to Tinkerboxxx and are protected
+        by intellectual property laws. These terms don't give you any rights to our trademarks or branding.
+      </p>
+
+      <h2>Availability and changes</h2>
+      <p>
+        We work to keep the Services running smoothly, but we may change, suspend or discontinue any part of
+        them at any time, and we don't guarantee they will always be available or error-free.
+      </p>
+
+      <h2>Disclaimer</h2>
+      <p>
+        The Services are provided "as is" and "as available", without warranties of any kind, whether express
+        or implied, including warranties of merchantability, fitness for a particular purpose and
+        non-infringement.
+      </p>
+
+      <h2>Limitation of liability</h2>
+      <p>
+        To the fullest extent permitted by law, Tinkerboxxx will not be liable for any indirect, incidental,
+        special or consequential damages, or for any loss of data, arising from your use of the Services.
+        Nothing in these terms limits liability that cannot be limited by law.
+      </p>
+
+      <h2>Changes to these terms</h2>
+      <p>
+        We may update these terms from time to time. When we do, we'll change the "Last updated" date at the
+        top of this page. Continuing to use the Services after a change means you accept the updated terms.
+      </p>
+
+      <h2>Contact</h2>
+      <p>Questions about these terms can be sent to <a href={`mailto:${EMAIL}`}>{EMAIL}</a>.</p>
+    </LegalPage>
   );
 }
 
