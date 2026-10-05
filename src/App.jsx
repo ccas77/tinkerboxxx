@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "./supabase";
-import { Home, About, Products, Careers, Contact, NotFound } from "./Marketing";
+import { Home, About, Products, Careers, Contact, Privacy, Terms, NotFound } from "./Marketing";
 import Tally from "./apps/Tally";
 import Jotpad from "./apps/Jotpad";
 import QrStudio from "./apps/QrStudio";
@@ -16,6 +16,8 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/careers" element={<Careers />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/apps/tally" element={<Tally />} />
         <Route path="/apps/jotpad" element={<Jotpad />} />
         <Route path="/apps/qr-studio" element={<QrStudio />} />
