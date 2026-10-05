@@ -1,259 +1,153 @@
-import { Link } from "react-router-dom";
-
-// The public face of the site: deliberately whimsical and vague. Nothing here
-// names a product or an app — the dashboard lives at /app and is untouched.
+import { Link, NavLink } from "react-router-dom";
 
 const CSS = `
-.tb {
-  --paper: #fbf5ea;
-  --paper-deep: #f4ead8;
-  --ink: #2b2140;
-  --ink-soft: #5a4f6e;
-  --muted: #877c97;
-  --coral: #e5685a;
-  --lilac: #9a86d8;
-  --mint: #6fbfa5;
-  --honey: #e9b04a;
-  --line: rgba(43, 33, 64, 0.14);
-  --display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --body: "Nunito", ui-rounded, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
-
-  position: relative; min-height: 100vh; overflow-x: hidden;
-  background:
-    radial-gradient(40vw 40vw at 8% 12%, rgba(154, 134, 216, 0.20), transparent 70%),
-    radial-gradient(45vw 45vw at 95% 30%, rgba(229, 104, 90, 0.14), transparent 70%),
-    radial-gradient(50vw 50vw at 30% 95%, rgba(111, 191, 165, 0.16), transparent 70%),
-    var(--paper);
-  color: var(--ink); font-family: var(--body);
+.st {
+  --bg: #ffffff;
+  --bg-soft: #f6f7f9;
+  --ink: #111827;
+  --ink-soft: #374151;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #4f46e5;
+  --accent-dark: #4338ca;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh; background: var(--bg); color: var(--ink); font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
 }
-.tb a { color: inherit; }
-.tb ::selection { background: var(--honey); color: var(--ink); }
+.st a { color: inherit; }
+.st-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
-/* nav */
-.tb-nav { position: relative; z-index: 5; max-width: 1100px; margin: 0 auto;
-  padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.tb-mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none;
-  font-family: var(--display); font-style: italic; font-weight: 600; font-size: 24px; letter-spacing: -0.01em; }
-.tb-mark svg { transition: transform 0.6s cubic-bezier(.3,1.6,.5,1); }
-.tb-mark:hover svg { transform: rotate(-14deg) scale(1.08); }
-.tb-links { display: flex; gap: 6px; flex-wrap: wrap; }
-.tb-links a { font-family: var(--hand); font-size: 22px; text-decoration: none; color: var(--ink-soft);
-  padding: 2px 12px; border-radius: 999px; transition: background 0.2s, color 0.2s, transform 0.2s; }
-.tb-links a:hover { background: rgba(255,255,255,0.7); color: var(--ink); transform: rotate(-2deg); }
+.st-header { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,0.9);
+  backdrop-filter: saturate(180%) blur(16px); border-bottom: 1px solid var(--line); }
+.st-header .st-wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  height: 64px; }
+.st-logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700;
+  font-size: 18px; letter-spacing: -0.02em; }
+.st-logo-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid;
+  place-items: center; color: #fff; font-size: 15px; font-weight: 800; }
+.st-nav { display: flex; gap: 4px; }
+.st-nav a { text-decoration: none; color: var(--ink-soft); font-size: 15px; font-weight: 500;
+  padding: 8px 12px; border-radius: 8px; }
+.st-nav a:hover { background: var(--bg-soft); color: var(--ink); }
+.st-nav a.active { color: var(--accent); }
 
-.tb-main { position: relative; z-index: 2; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+.st-eyebrow { font-size: 13px; font-weight: 600; color: var(--accent); text-transform: uppercase;
+  letter-spacing: 0.08em; margin-bottom: 14px; }
+.st-h1 { font-size: clamp(38px, 6vw, 64px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.05;
+  margin: 0 0 20px; }
+.st-h2 { font-size: clamp(28px, 4vw, 38px); font-weight: 750; letter-spacing: -0.025em; line-height: 1.15;
+  margin: 0 0 14px; }
+.st-lede { font-size: clamp(17px, 2vw, 19px); line-height: 1.6; color: var(--muted); max-width: 620px; margin: 0; }
 
-/* type */
-.tb-eyebrow { font-family: var(--hand); font-size: 24px; color: var(--coral); margin-bottom: 12px;
-  display: inline-block; transform: rotate(-2deg); }
-.tb-h1 { font-family: var(--display); font-weight: 500; font-size: clamp(44px, 8vw, 96px);
-  line-height: 1.0; letter-spacing: -0.03em; margin: 0 0 24px; font-variation-settings: "SOFT" 100, "WONK" 1; }
-.tb-h1 em { font-style: italic; color: var(--lilac); }
-.tb-h2 { font-family: var(--display); font-weight: 500; font-size: clamp(30px, 4.5vw, 46px);
-  line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 16px; font-variation-settings: "SOFT" 100, "WONK" 1; }
-.tb-h2 em { font-style: italic; color: var(--coral); }
-.tb-lede { font-size: clamp(17px, 2.2vw, 20px); line-height: 1.65; color: var(--ink-soft); max-width: 580px; }
+.st-hero { padding: 96px 0 72px; }
+.st-page { padding: 80px 0 40px; max-width: 760px; }
+.st-section { padding: 48px 0; }
 
-/* hero */
-.tb-hero { display: grid; grid-template-columns: 1.15fr 0.85fr; align-items: center; gap: 32px;
-  padding: 72px 0 96px; }
-.tb-hero-art { position: relative; aspect-ratio: 1; max-width: 420px; width: 100%; justify-self: center; }
-.tb-page { padding: 88px 0 48px; max-width: 760px; }
-.tb-center { text-align: center; margin-left: auto; margin-right: auto; }
-.tb-center .tb-lede { margin-left: auto; margin-right: auto; }
+.st-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
+.st-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 10px;
+  font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer;
+  font-family: var(--font); transition: background 0.15s, border-color 0.15s; }
+.st-btn-primary { background: var(--accent); color: #fff !important; }
+.st-btn-primary:hover { background: var(--accent-dark); }
+.st-btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+.st-btn-ghost:hover { border-color: #cbd5e1; }
 
-/* buttons */
-.tb-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
-.tb-center .tb-btns { justify-content: center; }
-.tb-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 26px; border-radius: 999px;
-  font-family: var(--body); font-weight: 700; font-size: 16px; text-decoration: none; cursor: pointer;
-  transition: transform 0.25s cubic-bezier(.3,1.6,.5,1), box-shadow 0.25s; }
-.tb-btn-primary { background: var(--ink); color: var(--paper) !important; box-shadow: 4px 4px 0 var(--coral); }
-.tb-btn-primary:hover { transform: translate(-2px, -2px) rotate(-1deg); box-shadow: 7px 7px 0 var(--coral); }
-.tb-btn-ghost { background: rgba(255,255,255,0.6); color: var(--ink); border: 1.5px dashed var(--ink-soft); }
-.tb-btn-ghost:hover { transform: rotate(1.5deg); background: #fff; }
+.st-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.st-app { display: flex; flex-direction: column; gap: 14px; padding: 24px; border: 1px solid var(--line);
+  border-radius: 16px; background: #fff; text-decoration: none; transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
+.st-app:hover { border-color: #c7d2fe; box-shadow: 0 10px 30px -12px rgba(79,70,229,0.25); transform: translateY(-2px); }
+.st-app-icon { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: #fff; }
+.st-app-name { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.st-app-desc { font-size: 15px; line-height: 1.55; color: var(--muted); flex: 1; }
+.st-app-cta { font-size: 14px; font-weight: 600; color: var(--accent); }
 
-/* jars / cards */
-.tb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; }
-.tb-card { position: relative; background: rgba(255,255,255,0.72); border: 1.5px solid var(--line);
-  border-radius: 28px 28px 22px 22px; padding: 30px 26px 28px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 18px 40px -24px rgba(43,33,64,0.35);
-  transition: transform 0.4s cubic-bezier(.3,1.6,.5,1); }
-.tb-card:nth-child(3n+1) { transform: rotate(-1.2deg); }
-.tb-card:nth-child(3n+2) { transform: rotate(0.8deg) translateY(10px); }
-.tb-card:nth-child(3n+3) { transform: rotate(-0.4deg); }
-.tb-card:hover { transform: rotate(0deg) translateY(-6px); }
-.tb-card-title { font-family: var(--display); font-style: italic; font-weight: 600; font-size: 26px; margin: 14px 0 8px; }
-.tb-card-body { color: var(--ink-soft); line-height: 1.6; font-size: 15.5px; }
-.tb-tag { display: inline-block; font-family: var(--hand); font-size: 20px; padding: 0 12px; border-radius: 6px;
-  color: var(--ink); transform: rotate(-3deg); }
+.st-card { padding: 28px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg-soft); }
+.st-card-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.st-card-body { font-size: 15px; line-height: 1.6; color: var(--muted); }
 
-/* notes */
-.tb-notes { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 14px; }
-.tb-notes li { display: flex; gap: 16px; align-items: baseline; padding: 16px 0; border-bottom: 1.5px dashed var(--line);
-  font-family: var(--display); font-size: clamp(19px, 2.6vw, 24px); line-height: 1.35; }
-.tb-notes li span { font-family: var(--hand); color: var(--coral); font-size: 22px; flex: 0 0 auto; min-width: 54px; }
+.st-band { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  padding: 64px 0; margin-top: 48px; }
+.st-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 24px; }
+.st-stat-num { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; }
+.st-stat-label { font-size: 14px; color: var(--muted); margin-top: 4px; }
 
-.tb-section { padding: 56px 0; }
-.tb-quiet { font-family: var(--hand); font-size: 26px; color: var(--muted); text-align: center; padding: 64px 0 24px; transform: rotate(-1deg); }
+.st-footer { border-top: 1px solid var(--line); margin-top: 96px; }
+.st-footer .st-wrap { padding-top: 40px; padding-bottom: 48px; display: flex; flex-wrap: wrap; gap: 32px;
+  justify-content: space-between; }
+.st-foot-col h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  margin: 0 0 12px; }
+.st-foot-col a { display: block; font-size: 14px; color: var(--muted); text-decoration: none; margin-bottom: 8px; }
+.st-foot-col a:hover { color: var(--ink); }
+.st-foot-col a.st-logo { display: inline-flex; color: var(--ink); font-size: 18px; }
+.st-copy { width: 100%; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
 
-/* contact envelopes */
-.tb-env { display: block; text-decoration: none; }
-.tb-env .tb-card-title { font-size: 20px; font-style: normal; font-family: var(--body); font-weight: 700; word-break: break-word; }
-
-/* footer */
-.tb-foot { position: relative; z-index: 2; margin-top: 96px; border-top: 1.5px dashed var(--line); }
-.tb-foot-in { max-width: 1100px; margin: 0 auto; padding: 36px 24px 44px; display: flex; flex-wrap: wrap;
-  gap: 20px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 14px; }
-.tb-foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
-.tb-foot-links a { text-decoration: none; color: var(--ink-soft); }
-.tb-foot-links a:hover { color: var(--coral); }
-.tb-foot-hand { font-family: var(--hand); font-size: 20px; color: var(--ink-soft); }
-
-/* floating doodles */
-.tb-sky { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
-.tb-float { position: absolute; animation: tb-bob 7s ease-in-out infinite; }
-.tb-spin { animation: tb-spin 22s linear infinite; transform-origin: center; transform-box: fill-box; }
-.tb-twinkle { animation: tb-twinkle 2.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
-.tb-rise { animation: tb-rise 5s ease-in infinite; }
-.tb-lid { animation: tb-lid 4.5s ease-in-out infinite; transform-origin: 30% 100%; transform-box: fill-box; }
-@keyframes tb-bob { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-16px) rotate(6deg); } }
-@keyframes tb-spin { to { transform: rotate(360deg); } }
-@keyframes tb-twinkle { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
-@keyframes tb-rise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-120px); opacity: 0; } }
-@keyframes tb-lid { 0%,100% { transform: rotate(-14deg); } 50% { transform: rotate(-24deg); } }
-
-@media (max-width: 760px) {
-  .tb-hero { grid-template-columns: 1fr; padding: 40px 0 64px; text-align: center; }
-  .tb-hero .tb-lede { margin-left: auto; margin-right: auto; }
-  .tb-hero .tb-btns { justify-content: center; }
-  .tb-hero-art { max-width: 280px; order: -1; }
-  .tb-page { padding: 56px 0 32px; }
-  .tb-nav { justify-content: center; }
-  .tb-links a { font-size: 20px; padding: 2px 8px; }
-  .tb-foot-in { justify-content: center; text-align: center; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tb *, .tb *::before, .tb *::after { animation: none !important; transition: none !important; }
+@media (max-width: 640px) {
+  .st-header .st-wrap { height: auto; padding-top: 12px; padding-bottom: 12px; flex-direction: column; gap: 8px; }
+  .st-nav a { padding: 6px 8px; font-size: 14px; }
+  .st-hero { padding: 56px 0 40px; }
+  .st-page { padding: 48px 0 24px; }
 }
 `;
 
-function Star({ size = 18, color = "var(--honey)", className = "tb-twinkle", style }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={style} aria-hidden="true">
-      <path className={className} d="M12 1 C13 8 16 11 23 12 C16 13 13 16 12 23 C11 16 8 13 1 12 C8 11 11 8 12 1 Z" fill={color} />
-    </svg>
-  );
-}
+const ICONS = {
+  tally: <path d="M5 12l4 4L19 6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />,
+  jotpad: <path d="M6 4h9l4 4v12H6zM9 12h7M9 16h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />,
+  qr: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2v2h-2zM18 14h2v2h-2z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />,
+  palette: <path d="M12 3a9 9 0 100 18c1.1 0 1.6-.8 1.3-1.7-.4-1.1.3-2.3 1.5-2.3H17a4 4 0 004-4c0-5-4-10-9-10zM7.5 12a1.2 1.2 0 110-.01M10 7.5a1.2 1.2 0 110-.01M15 7.5a1.2 1.2 0 110-.01" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />,
+};
 
-function Spiral({ size = 46, color = "var(--lilac)", style }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 50 50" style={style} aria-hidden="true">
-      <path className="tb-spin" d="M25 25 m0 -2 a2 2 0 1 1 -2 2 a5 5 0 0 1 5 -5 a8 8 0 0 1 8 8 a11 11 0 0 1 -11 11 a14 14 0 0 1 -14 -14 a17 17 0 0 1 17 -17"
-        fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
-    </svg>
-  );
-}
+export const APPS = [
+  { key: "tally", name: "Tally", path: "/apps/tally", color: "#10b981", desc: "A simple habit tracker. Check off each day and watch your streaks grow." },
+  { key: "jotpad", name: "Jotpad", path: "/apps/jotpad", color: "#f59e0b", desc: "Quick notes with tags and instant search. Nothing to set up." },
+  { key: "qr", name: "QR Studio", path: "/apps/qr-studio", color: "#4f46e5", desc: "Create QR codes for any link or text, in your colours, ready to download." },
+  { key: "palette", name: "Palette", path: "/apps/palette", color: "#ec4899", desc: "Generate harmonious colour palettes and copy hex codes in one click." },
+];
 
-// A scatter of drifting doodles behind every page.
-function Sky() {
-  const bits = [
-    { el: <Star size={22} />, top: "14%", left: "4%", delay: "0s" },
-    { el: <Spiral />, top: "8%", left: "88%", delay: "-2s" },
-    { el: <Star size={14} color="var(--coral)" />, top: "46%", left: "93%", delay: "-1s" },
-    { el: <Star size={12} color="var(--lilac)" />, top: "62%", left: "3%", delay: "-3s" },
-    { el: <Spiral size={34} color="var(--mint)" />, top: "82%", left: "8%", delay: "-4s" },
-    { el: <Star size={18} color="var(--mint)" />, top: "88%", left: "90%", delay: "-5s" },
-  ];
+export function AppIcon({ app, size = 48 }) {
   return (
-    <div className="tb-sky">
-      {bits.map((b, i) => (
-        <div key={i} className="tb-float" style={{ top: b.top, left: b.left, animationDelay: b.delay }}>{b.el}</div>
-      ))}
+    <div className="st-app-icon" style={{ background: app.color, width: size, height: size }}>
+      <svg width={size / 2} height={size / 2} viewBox="0 0 24 24" aria-hidden="true">{ICONS[app.key]}</svg>
     </div>
   );
 }
 
-function BoxMark({ size = 30 }) {
+function Header() {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
-      <rect x="6" y="17" width="28" height="18" rx="4" fill="var(--coral)" />
-      <rect x="4" y="10" width="32" height="7" rx="3" fill="var(--ink)" transform="rotate(-12 6 17)" />
-      <path d="M27 5 l1.2 2.8 2.8 1.2 -2.8 1.2 -1.2 2.8 -1.2 -2.8 -2.8 -1.2 2.8 -1.2z" fill="var(--honey)" />
-    </svg>
-  );
-}
-
-// The hero illustration: a little box, lid ajar, with things drifting out of it.
-function BoxScene() {
-  return (
-    <div className="tb-hero-art">
-      <svg viewBox="0 0 400 400" width="100%" height="100%" role="img" aria-label="A small box with its lid ajar and sparks drifting out">
-        <ellipse cx="200" cy="330" rx="130" ry="18" fill="rgba(43,33,64,0.08)" />
-        {/* glow */}
-        <circle cx="200" cy="200" r="120" fill="url(#tbglow)" />
-        <defs>
-          <radialGradient id="tbglow">
-            <stop offset="0%" stopColor="#ffe7a8" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#ffe7a8" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        {/* escaping bits */}
-        <g className="tb-rise" style={{ animationDelay: "0s" }}><circle cx="170" cy="190" r="6" fill="var(--lilac)" /></g>
-        <g className="tb-rise" style={{ animationDelay: "-1.6s" }}><circle cx="232" cy="180" r="4.5" fill="var(--mint)" /></g>
-        <g className="tb-rise" style={{ animationDelay: "-3.2s" }}><circle cx="205" cy="200" r="5" fill="var(--coral)" /></g>
-        <g className="tb-rise" style={{ animationDelay: "-2.4s" }}>
-          <path d="M190 170 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="var(--honey)" />
-        </g>
-        <g className="tb-rise" style={{ animationDelay: "-4.1s" }}>
-          <path d="M245 200 q8 -10 16 0 t16 0" fill="none" stroke="var(--lilac)" strokeWidth="3" strokeLinecap="round" />
-        </g>
-        {/* box body */}
-        <path d="M110 215 L290 215 L278 320 Q276 330 266 330 L134 330 Q124 330 122 320 Z" fill="var(--coral)" />
-        <path d="M110 215 L290 215 L287 240 L113 240 Z" fill="rgba(0,0,0,0.10)" />
-        <path d="M150 260 q20 14 40 0 t40 0 t40 0" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="3" strokeLinecap="round" strokeDasharray="2 9" />
-        <circle cx="200" cy="292" r="8" fill="var(--honey)" />
-        {/* lid */}
-        <g className="tb-lid">
-          <rect x="100" y="190" width="200" height="28" rx="8" fill="var(--ink)" />
-          <rect x="185" y="180" width="30" height="12" rx="6" fill="var(--ink)" />
-        </g>
-        {/* stars around */}
-        <path className="tb-twinkle" d="M80 120 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4z" fill="var(--honey)" />
-        <path className="tb-twinkle" style={{ animationDelay: "-1.2s" }} d="M320 90 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="var(--coral)" />
-        <path className="tb-twinkle" style={{ animationDelay: "-2s" }} d="M330 250 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="var(--lilac)" />
-        <circle className="tb-twinkle" style={{ animationDelay: "-0.6s" }} cx="70" cy="260" r="4" fill="var(--mint)" />
-      </svg>
-    </div>
-  );
-}
-
-function Nav() {
-  return (
-    <header className="tb-nav">
-      <Link to="/" className="tb-mark"><BoxMark />tinkerboxxx</Link>
-      <nav className="tb-links">
-        <Link to="/about">wander</Link>
-        <Link to="/products">the shelf</Link>
-        <Link to="/contact">say hello</Link>
-      </nav>
+    <header className="st-header">
+      <div className="st-wrap">
+        <Link to="/" className="st-logo"><span className="st-logo-mark">t</span>tinkerboxxx</Link>
+        <nav className="st-nav">
+          <NavLink to="/products">Apps</NavLink>
+          <NavLink to="/about">About</NavLink>
+          <NavLink to="/careers">Careers</NavLink>
+          <NavLink to="/contact">Contact</NavLink>
+        </nav>
+      </div>
     </header>
   );
 }
 
 function Footer() {
   return (
-    <footer className="tb-foot">
-      <div className="tb-foot-in">
-        <div className="tb-foot-hand">made slowly, by lamplight ✶</div>
-        <div className="tb-foot-links">
-          <Link to="/about">wander</Link>
-          <Link to="/products">the shelf</Link>
-          <Link to="/careers">apprentices</Link>
-          <Link to="/contact">say hello</Link>
+    <footer className="st-footer">
+      <div className="st-wrap">
+        <div className="st-foot-col">
+          <Link to="/" className="st-logo" style={{ marginBottom: 12 }}><span className="st-logo-mark">t</span>tinkerboxxx</Link>
+          <div style={{ fontSize: 14, color: "var(--muted)", maxWidth: 260, lineHeight: 1.6 }}>
+            Simple, useful web apps for everyday tasks.
+          </div>
         </div>
-        <div>© {new Date().getFullYear()} Tinkerboxxx</div>
+        <div className="st-foot-col">
+          <h4>Apps</h4>
+          {APPS.map(a => <Link key={a.key} to={a.path}>{a.name}</Link>)}
+        </div>
+        <div className="st-foot-col">
+          <h4>Company</h4>
+          <Link to="/about">About</Link>
+          <Link to="/careers">Careers</Link>
+          <Link to="/contact">Contact</Link>
+        </div>
+        <div className="st-copy">© {new Date().getFullYear()} Tinkerboxxx. All rights reserved.</div>
       </div>
     </footer>
   );
@@ -261,86 +155,75 @@ function Footer() {
 
 export function Layout({ children }) {
   return (
-    <div className="tb">
+    <div className="st">
       <style>{CSS}</style>
-      <Sky />
-      <Nav />
-      <main className="tb-main">{children}</main>
+      <Header />
+      <main className="st-wrap">{children}</main>
       <Footer />
     </div>
   );
 }
 
 function Btn({ to, href, children, variant = "primary" }) {
-  const className = `tb-btn ${variant === "primary" ? "tb-btn-primary" : "tb-btn-ghost"}`;
+  const className = `st-btn ${variant === "primary" ? "st-btn-primary" : "st-btn-ghost"}`;
   return to
     ? <Link to={to} className={className}>{children}</Link>
     : <a href={href} className={className}>{children}</a>;
 }
 
-function Card({ tag, tagColor, title, children }) {
+function AppGrid() {
   return (
-    <div className="tb-card">
-      {tag && <span className="tb-tag" style={{ background: tagColor }}>{tag}</span>}
-      <div className="tb-card-title">{title}</div>
-      <div className="tb-card-body">{children}</div>
+    <div className="st-grid">
+      {APPS.map(a => (
+        <Link key={a.key} to={a.path} className="st-app">
+          <AppIcon app={a} />
+          <div className="st-app-name">{a.name}</div>
+          <div className="st-app-desc">{a.desc}</div>
+          <div className="st-app-cta">Open app →</div>
+        </Link>
+      ))}
     </div>
   );
 }
 
-const JARS = [
-  { tag: "jar no. 1", color: "#f3d6f0", title: "Odds", body: "Bits of string, half-thoughts, a small bolt that fits nothing in particular. Yet." },
-  { tag: "jar no. 2", color: "#d7f0e6", title: "Ends", body: "The pieces that only make sense once everything else is finished. We keep them close." },
-  { tag: "jar no. 3", color: "#fde9c2", title: "Maybes", body: "Kept in a drawer, taken out on quiet afternoons, held up to the window to see what they do." },
-];
-
-const NOTES = [
-  "Small things are allowed to be wonderful.",
-  "Curiosity first. Explanations later, possibly never.",
-  "If it hums when you switch it on, keep it.",
-  "Leave a little room for the unexpected to sit down.",
-];
-
 export function Home() {
   return (
     <Layout>
-      <section className="tb-hero">
-        <div>
-          <div className="tb-eyebrow">somewhere between a Tuesday and a daydream…</div>
-          <h1 className="tb-h1">Something is being <em>tinkered.</em></h1>
-          <p className="tb-lede">
-            Behind this door there's a workbench, a jar of loose ideas, and a lamp that stays on later than it
-            should. We can't tell you what's on the bench just yet. Honestly, we're still finding out ourselves.
-          </p>
-          <div className="tb-btns">
-            <Btn to="/about">Peek inside</Btn>
-            <Btn to="/contact" variant="ghost">Leave a note ✎</Btn>
+      <section className="st-hero">
+        <div className="st-eyebrow">App development studio</div>
+        <h1 className="st-h1" style={{ maxWidth: 820 }}>Simple apps that do one thing well.</h1>
+        <p className="st-lede">
+          Tinkerboxxx designs and builds lightweight web apps for everyday tasks. Fast to load, easy to use,
+          and free of clutter.
+        </p>
+        <div className="st-btns">
+          <Btn to="/products">Browse our apps</Btn>
+          <Btn to="/contact" variant="ghost">Get in touch</Btn>
+        </div>
+      </section>
+
+      <section className="st-section">
+        <div className="st-eyebrow">Our apps</div>
+        <h2 className="st-h2" style={{ marginBottom: 28 }}>Made by Tinkerboxxx</h2>
+        <AppGrid />
+      </section>
+
+      <section className="st-section">
+        <div className="st-grid">
+          <div className="st-card">
+            <div className="st-card-title">Focused</div>
+            <div className="st-card-body">Each app solves one problem clearly, without menus full of features nobody uses.</div>
+          </div>
+          <div className="st-card">
+            <div className="st-card-title">Fast</div>
+            <div className="st-card-body">Built for the web, so there's nothing to install. Open a link and get going.</div>
+          </div>
+          <div className="st-card">
+            <div className="st-card-title">Private</div>
+            <div className="st-card-body">Your data stays on your device. No sign-ups required.</div>
           </div>
         </div>
-        <BoxScene />
       </section>
-
-      <section className="tb-section">
-        <div className="tb-center" style={{ maxWidth: 640, marginBottom: 40 }}>
-          <div className="tb-eyebrow">on the workbench, roughly</div>
-          <h2 className="tb-h2">A few jars, <em>loosely labelled.</em></h2>
-        </div>
-        <div className="tb-grid">
-          {JARS.map(j => (
-            <Card key={j.title} tag={j.tag} tagColor={j.color} title={j.title}>{j.body}</Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="tb-section" style={{ maxWidth: 760 }}>
-        <div className="tb-eyebrow">scribbled in the margins</div>
-        <h2 className="tb-h2">Field notes.</h2>
-        <ul className="tb-notes">
-          {NOTES.map((n, i) => <li key={i}><span>no. {i + 1}</span>{n}</li>)}
-        </ul>
-      </section>
-
-      <div className="tb-quiet">psst — keep an eye on this space. ✶</div>
     </Layout>
   );
 }
@@ -348,23 +231,14 @@ export function Home() {
 export function Products() {
   return (
     <Layout>
-      <section className="tb-page tb-center">
-        <div className="tb-eyebrow">the shelf</div>
-        <h1 className="tb-h1">Still being <em>dusted.</em></h1>
-        <p className="tb-lede">
-          There's nothing on display quite yet. Things are being sanded, wound up, and occasionally talked to
-          in an encouraging voice. Come back when the lamp is a little brighter.
-        </p>
-        <div className="tb-btns">
-          <Btn to="/">Back to the bench</Btn>
-          <Btn to="/contact" variant="ghost">Ask to be told</Btn>
-        </div>
+      <section className="st-page">
+        <div className="st-eyebrow">Apps</div>
+        <h1 className="st-h1">Our apps</h1>
+        <p className="st-lede">Everyday tools that work right in your browser. Free to use, no account needed.</p>
       </section>
-      <div style={{ display: "flex", justifyContent: "center", gap: 28, padding: "24px 0" }}>
-        <Star size={20} />
-        <Star size={14} color="var(--coral)" />
-        <Star size={20} color="var(--lilac)" />
-      </div>
+      <section className="st-section" style={{ paddingTop: 16 }}>
+        <AppGrid />
+      </section>
     </Layout>
   );
 }
@@ -372,27 +246,28 @@ export function Products() {
 export function About() {
   return (
     <Layout>
-      <section className="tb-page">
-        <div className="tb-eyebrow">wander in, mind the cables</div>
-        <h1 className="tb-h1">A small workshop with a <em>large imagination.</em></h1>
-        <p className="tb-lede">
-          Tinkerboxxx is a place where ideas are allowed to be strange for a while before anyone asks them to
-          be useful. Some of them grow up. Some of them stay odd forever. We love them equally.
+      <section className="st-page">
+        <div className="st-eyebrow">About</div>
+        <h1 className="st-h1">A small studio building useful software.</h1>
+        <p className="st-lede">
+          Tinkerboxxx is an independent app development studio. We design, build and maintain web apps that
+          help people get small, everyday jobs done quickly.
         </p>
       </section>
-
-      <section className="tb-section">
-        <div className="tb-eyebrow">things we hold dear</div>
-        <div className="tb-grid" style={{ marginTop: 16 }}>
-          <Card tag="✶" tagColor="#fde9c2" title="Small, on purpose">
-            Small enough to follow a hunch down a side street and still be home for tea.
-          </Card>
-          <Card tag="✶" tagColor="#d7f0e6" title="Wonder, then work">
-            Every good thing here started as a "what if…?" muttered at an inconvenient hour.
-          </Card>
-          <Card tag="✶" tagColor="#f3d6f0" title="Gentle by nature">
-            No tricks, no hurry, no shouting. Things that are kind to the people who find them.
-          </Card>
+      <section className="st-section">
+        <div className="st-grid">
+          <div className="st-card">
+            <div className="st-card-title">What we do</div>
+            <div className="st-card-body">Product design, front-end and back-end development, hosting and ongoing maintenance of our own apps.</div>
+          </div>
+          <div className="st-card">
+            <div className="st-card-title">How we work</div>
+            <div className="st-card-body">Small releases, fast feedback, and careful attention to the details that make software pleasant to use.</div>
+          </div>
+          <div className="st-card">
+            <div className="st-card-title">What's next</div>
+            <div className="st-card-body">We're growing our catalogue with more lightweight tools for productivity and creativity.</div>
+          </div>
         </div>
       </section>
     </Layout>
@@ -402,42 +277,36 @@ export function About() {
 export function Careers() {
   return (
     <Layout>
-      <section className="tb-page">
-        <div className="tb-eyebrow">wanted: no one (yet)</div>
-        <h1 className="tb-h1">Apprentices of <em>wonder.</em></h1>
-        <p className="tb-lede">
-          The workshop has exactly one stool, and it's currently occupied. But if you're the sort of person who
-          collects interesting pebbles and takes apart clocks just to see, we'd like to know you exist.
+      <section className="st-page">
+        <div className="st-eyebrow">Careers</div>
+        <h1 className="st-h1">Join us</h1>
+        <p className="st-lede">
+          We don't have any open roles right now. If you're a designer or developer who enjoys building simple,
+          well-made products, we'd still love to hear from you.
         </p>
-        <div className="tb-btns">
-          <Btn to="/contact">Slip a note under the door</Btn>
-        </div>
+        <div className="st-btns"><Btn to="/contact">Contact us</Btn></div>
       </section>
     </Layout>
   );
 }
 
 export function Contact() {
-  const envelopes = [
-    { tag: "general wonderings", color: "#fde9c2", value: "hello@tinkerboxxx.com" },
-    { tag: "something's gone wobbly", color: "#d7f0e6", value: "support@tinkerboxxx.com" },
-    { tag: "ink & paper", color: "#f3d6f0", value: "press@tinkerboxxx.com" },
+  const rows = [
+    { label: "General enquiries", value: "hello@tinkerboxxx.com" },
+    { label: "App support", value: "support@tinkerboxxx.com" },
   ];
   return (
     <Layout>
-      <section className="tb-page">
-        <div className="tb-eyebrow">fold it into a paper plane</div>
-        <h1 className="tb-h1">Say <em>hello.</em></h1>
-        <p className="tb-lede">
-          Questions, curiosities, a nice thing you saw today. Letters are read by a human, usually with a cup
-          of something warm nearby.
-        </p>
+      <section className="st-page">
+        <div className="st-eyebrow">Contact</div>
+        <h1 className="st-h1">Get in touch</h1>
+        <p className="st-lede">Questions, feedback or partnership enquiries. We usually reply within one business day.</p>
       </section>
-      <section className="tb-grid">
-        {envelopes.map(e => (
-          <a key={e.value} href={`mailto:${e.value}`} className="tb-card tb-env">
-            <span className="tb-tag" style={{ background: e.color }}>{e.tag}</span>
-            <div className="tb-card-title">{e.value}</div>
+      <section className="st-grid">
+        {rows.map(r => (
+          <a key={r.value} href={`mailto:${r.value}`} className="st-card" style={{ textDecoration: "none", display: "block" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--accent)", marginBottom: 8 }}>{r.label}</div>
+            <div style={{ fontSize: 17, fontWeight: 600, wordBreak: "break-word" }}>{r.value}</div>
           </a>
         ))}
       </section>
@@ -448,13 +317,11 @@ export function Contact() {
 export function NotFound() {
   return (
     <Layout>
-      <section className="tb-page tb-center" style={{ paddingTop: 120 }}>
-        <div className="tb-eyebrow">here be dragons (probably)</div>
-        <h1 className="tb-h1">You've wandered <em>off the map.</em></h1>
-        <p className="tb-lede">This corner hasn't been drawn yet. Perhaps it never will be. Perhaps that's the charm.</p>
-        <div className="tb-btns">
-          <Btn to="/">Find your way back</Btn>
-        </div>
+      <section className="st-page" style={{ textAlign: "center", margin: "0 auto", paddingTop: 120 }}>
+        <div className="st-eyebrow">404</div>
+        <h1 className="st-h1">Page not found</h1>
+        <p className="st-lede" style={{ margin: "0 auto" }}>The page you're looking for doesn't exist or has moved.</p>
+        <div className="st-btns" style={{ justifyContent: "center" }}><Btn to="/">Back to home</Btn></div>
       </section>
     </Layout>
   );

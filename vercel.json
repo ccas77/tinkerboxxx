@@ -10,6 +10,7 @@
     { "source": "/products", "destination": "/" },
     { "source": "/careers", "destination": "/" },
     { "source": "/contact", "destination": "/" },
+    { "source": "/apps/:path*", "destination": "/" },
     { "source": "/app", "destination": "/" },
     { "source": "/app/:path*", "destination": "/" }
   ]

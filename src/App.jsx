@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "./supabase";
 import { Home, About, Products, Careers, Contact, NotFound } from "./Marketing";
+import Tally from "./apps/Tally";
+import Jotpad from "./apps/Jotpad";
+import QrStudio from "./apps/QrStudio";
+import Palette from "./apps/Palette";
 
 export default function App() {
   return (
@@ -12,6 +16,10 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/careers" element={<Careers />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/apps/tally" element={<Tally />} />
+        <Route path="/apps/jotpad" element={<Jotpad />} />
+        <Route path="/apps/qr-studio" element={<QrStudio />} />
+        <Route path="/apps/palette" element={<Palette />} />
         <Route path="/app/*" element={<Dashboard />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
