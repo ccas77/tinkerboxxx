@@ -1,4 +1,4 @@
-# Tinkerboxxx
+# Tinkerbox
 
 Your personal app launchpad. Two tabs — My Apps for quick links to your live web apps, and Ideas for saving specs and notes.
 

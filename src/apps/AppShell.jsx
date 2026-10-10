@@ -25,7 +25,7 @@ const CSS = `
 
 export function AppShell({ appKey, children }) {
   const app = APPS.find(a => a.key === appKey);
-  useEffect(() => { document.title = `${app.name} · Tinkerboxxx`; return () => { document.title = "Tinkerboxxx"; }; }, [app.name]);
+  useEffect(() => { document.title = `${app.name} · Tinkerbox`; return () => { document.title = "Tinkerbox"; }; }, [app.name]);
   return (
     <Layout>
       <style>{CSS}</style>
