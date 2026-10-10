@@ -123,7 +123,7 @@ function Header() {
   return (
     <header className="st-header">
       <div className="st-wrap">
-        <Link to="/" className="st-logo"><span className="st-logo-mark">t</span>tinkerboxxx</Link>
+        <Link to="/" className="st-logo"><span className="st-logo-mark">t</span>tinkerbox</Link>
         <nav className="st-nav">
           <NavLink to="/products">Apps</NavLink>
           <NavLink to="/about">About</NavLink>
@@ -140,7 +140,7 @@ function Footer() {
     <footer className="st-footer">
       <div className="st-wrap">
         <div className="st-foot-col">
-          <Link to="/" className="st-logo" style={{ marginBottom: 12 }}><span className="st-logo-mark">t</span>tinkerboxxx</Link>
+          <Link to="/" className="st-logo" style={{ marginBottom: 12 }}><span className="st-logo-mark">t</span>tinkerbox</Link>
           <div style={{ fontSize: 14, color: "var(--muted)", maxWidth: 260, lineHeight: 1.6 }}>
             Simple, useful web apps for everyday tasks.
           </div>
@@ -160,7 +160,7 @@ function Footer() {
           <Link to="/privacy">Privacy Policy</Link>
           <Link to="/terms">Terms of Use</Link>
         </div>
-        <div className="st-copy">© {new Date().getFullYear()} Tinkerboxxx. All rights reserved.</div>
+        <div className="st-copy">© {new Date().getFullYear()} Tinkerbox. All rights reserved.</div>
       </div>
     </footer>
   );
@@ -206,7 +206,7 @@ export function Home() {
         <div className="st-eyebrow">App development studio</div>
         <h1 className="st-h1" style={{ maxWidth: 820 }}>Simple apps that do one thing well.</h1>
         <p className="st-lede">
-          Tinkerboxxx designs and builds lightweight web apps for everyday tasks. Fast to load, easy to use,
+          Tinkerbox designs and builds lightweight web apps for everyday tasks. Fast to load, easy to use,
           and free of clutter.
         </p>
         <div className="st-btns">
@@ -217,7 +217,7 @@ export function Home() {
 
       <section className="st-section">
         <div className="st-eyebrow">Our apps</div>
-        <h2 className="st-h2" style={{ marginBottom: 28 }}>Made by Tinkerboxxx</h2>
+        <h2 className="st-h2" style={{ marginBottom: 28 }}>Made by Tinkerbox</h2>
         <AppGrid />
       </section>
 
@@ -263,7 +263,7 @@ export function About() {
         <div className="st-eyebrow">About</div>
         <h1 className="st-h1">A small studio building useful software.</h1>
         <p className="st-lede">
-          Tinkerboxxx is an independent app development studio. We design, build and maintain web apps that
+          Tinkerbox is an independent app development studio. We design, build and maintain web apps that
           help people get small, everyday jobs done quickly.
         </p>
       </section>
@@ -347,7 +347,7 @@ export function Privacy() {
   return (
     <LegalPage eyebrow="Legal" title="Privacy Policy">
       <p>
-        This Privacy Policy explains how Tinkerboxxx ("we", "us") handles information when you visit
+        This Privacy Policy explains how Tinkerbox ("we", "us") handles information when you visit
         tinkerboxxx.com or use our apps (Tally, Jotpad, QR Studio and Palette). The short version: our apps
         run in your browser, we don't ask you to create an account, and we don't collect the content you put
         into them.
@@ -457,7 +457,7 @@ export function Terms() {
 
       <h2>Our intellectual property</h2>
       <p>
-        The Services, including their design, code, text and logos, belong to Tinkerboxxx and are protected
+        The Services, including their design, code, text and logos, belong to Tinkerbox and are protected
         by intellectual property laws. These terms don't give you any rights to our trademarks or branding.
       </p>
 
@@ -476,7 +476,7 @@ export function Terms() {
 
       <h2>Limitation of liability</h2>
       <p>
-        To the fullest extent permitted by law, Tinkerboxxx will not be liable for any indirect, incidental,
+        To the fullest extent permitted by law, Tinkerbox will not be liable for any indirect, incidental,
         special or consequential damages, or for any loss of data, arising from your use of the Services.
         Nothing in these terms limits liability that cannot be limited by law.
       </p>
